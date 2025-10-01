@@ -2,118 +2,58 @@
 Console monitoring functions for Steam Upload Helper.
 """
 
-import platform
-import subprocess
 import threading
 import time
 from pathlib import Path
 from utils import log_message, cleanup_temp_scripts
+from platform_helpers import ConsoleMonitor as PlatformConsoleMonitor
 
 
 def start_console_monitor(helper, login_status, login_button, enable_controls_func, page):
     """Start monitoring the console to detect if it's closed."""
-    if helper.console_monitor_thread and helper.console_monitor_thread.is_alive():
+    log_message(f"[コンソール監視] start_console_monitor呼び出し")
+    log_message(f"[コンソール監視] helper.steamcmd_terminal = {helper.steamcmd_terminal}")
+    log_message(f"[コンソール監視] 既存スレッド: {helper.console_monitor_thread if hasattr(helper, 'console_monitor_thread') else 'なし'}")
+    log_message(f"[コンソール監視] helper.is_logged_in = {helper.is_logged_in if hasattr(helper, 'is_logged_in') else 'None'}")
+    
+    if hasattr(helper, 'console_monitor_thread') and helper.console_monitor_thread and helper.console_monitor_thread.is_alive():
+        log_message(f"[コンソール監視] 既に監視中のため終了")
         return  # Already monitoring
     
     def monitor_console():
         """Monitor the console window status."""
-        log_message("コンソール監視を開始しました...")
+        log_message("[コンソール監視] monitor_console関数が開始されました")
+        log_message(f"[コンソール監視] 監視対象: helper.steamcmd_terminal = {helper.steamcmd_terminal}")
         monitor_count = 0
         grace_period_checks = 2  # First ~2.5 seconds grace period for process startup
-
+        
+        log_message(f"[コンソール監視] whileループ開始前: helper.steamcmd_terminal = {helper.steamcmd_terminal}")
         while helper.steamcmd_terminal:
             monitor_count += 1
             console_closed = False
+            
+            if monitor_count == 1:
+                log_message(f"[コンソール監視] whileループ内に入りました (monitor_count={monitor_count})")
 
             try:
-                if platform.system() == "Darwin":  # macOS
-                    # First check if Terminal app has any windows
-                    result = subprocess.run(
-                        ['osascript', '-e', 'tell application "Terminal" to count windows'],
-                        capture_output=True, text=True
-                    )
-                    
-                    if result.returncode != 0 or result.stdout.strip() == "0":
-                        console_closed = True
-                    else:
-                        # Check if any window contains steamcmd
-                        check_script = '''
-                        tell application "Terminal"
-                            set steamcmdFound to false
-                            set windowCount to count windows
-                            repeat with w in windows
-                                try
-                                    repeat with t in tabs of w
-                                        if processes of t contains "steamcmd" or name of t contains "steamcmd" then
-                                            set steamcmdFound to true
-                                            exit repeat
-                                        end if
-                                    end repeat
-                                end try
-                            end repeat
-                            return steamcmdFound
-                        end tell
-                        '''
-                        result = subprocess.run(
-                            ['osascript', '-e', check_script],
-                            capture_output=True, text=True
-                        )
-                        
-                        # Also check using ps command as backup
-                        ps_result = subprocess.run(
-                            ['ps', 'aux'],
-                            capture_output=True, text=True
-                        )
-                        has_steamcmd_process = 'steamcmd' in ps_result.stdout.lower()
-                        
-                        if result.stdout.strip() != "true" and not has_steamcmd_process:
-                            console_closed = True
-                            log_message(f"macOS: SteamCMDコンソールが見つかりません (AppleScript: {result.stdout.strip()}, ps: {has_steamcmd_process})")
-                        else:
-                            if monitor_count % 10 == 0:
-                                log_message(f"macOS: SteamCMDコンソール検出 (AppleScript: {result.stdout.strip()}, ps: {has_steamcmd_process})")
-                    
-                elif platform.system() == "Windows":
-                    # Check if steamcmd.exe process is still running
-                    try:
-                        # Check for steamcmd.exe process (fast check only)
-                        result = subprocess.run(
-                            ['tasklist', '/FI', 'IMAGENAME eq steamcmd.exe'],
-                            capture_output=True, text=True
-                        )
-
-                        has_steamcmd = "steamcmd.exe" in result.stdout
-
-                        # Apply grace period - don't close console during initial startup
-                        if not has_steamcmd:
-                            if monitor_count > grace_period_checks:
-                                console_closed = True
-                                log_message(f"Windows: SteamCMDコンソールが見つかりません")
-                            else:
-                                log_message(f"Windows: 起動待機中... ({monitor_count}/{grace_period_checks})")
-                        else:
-                            if monitor_count % 10 == 0:
-                                log_message(f"Windows: SteamCMDコンソール検出")
-                    except Exception as e:
-                        log_message(f"Windows コンソールチェックエラー: {e}")
+                # OS固有のコンソールチェックをplatform_helpersに委譲
+                console_status = PlatformConsoleMonitor.check_console_status(monitor_count, grace_period_checks)
+                console_closed = console_status.get('closed', False)
+                
+                if console_status.get('log_message'):
+                    log_message(console_status['log_message'])
                 
                 if console_closed:
-                    log_message("コンソールが閉じられました！ログイン状態をリセットしています...")
+                    log_message("⚠️ コンソールが閉じられました！ログイン状態をリセットしています...")
                     
-                    # Disable upload controls only if user was logged in
-                    if helper.is_logged_in:
-                        enable_controls_func(False)
-                    
-                    # Reset login state
+                    # Reset state
                     helper.is_logged_in = False
                     helper.steamcmd_terminal = False
-                    login_status.value = "未ログイン"
-                    login_status.color = "red"
                     
-                    # Re-enable login button
-                    login_button.disabled = False
+                    # Notify through main app callback
+                    if hasattr(helper, 'on_console_closed_callback') and helper.on_console_closed_callback:
+                        helper.on_console_closed_callback()
                     
-                    page.update()
                     break
                 
                 # Check every 0.5 seconds (faster!)
@@ -128,4 +68,7 @@ def start_console_monitor(helper, login_status, login_button, enable_controls_fu
     # Start monitoring thread
     helper.console_monitor_thread = threading.Thread(target=monitor_console, daemon=True)
     helper.console_monitor_thread.start()
-    log_message(f"コンソール監視スレッドを開始しました (thread alive: {helper.console_monitor_thread.is_alive()})")
+    log_message(f"[コンソール監視] スレッドを開始しました (thread alive: {helper.console_monitor_thread.is_alive()})")
+    
+    # Return the thread for reference
+    return helper.console_monitor_thread

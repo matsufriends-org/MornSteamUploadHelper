@@ -79,3 +79,98 @@ class SteamUploadHelper:
         if name in self.upload_configs:
             del self.upload_configs[name]
             self.save_upload_configs()
+    
+    def create_vdf_file(self, config_name, config):
+        """Create VDF files for Steam upload."""
+        import os
+        import time
+        
+        # Get required values
+        app_id = config.get("app_id", "")
+        depot_id = config.get("depot_id", "")
+        branch = config.get("branch", "")
+        description = config.get("description", f"Morn Steam アップロードヘルパーでアップロード - {time.strftime('%Y-%m-%d %H:%M:%S')}")
+        content_path = config.get("content_path", "")
+        
+        if not all([app_id, depot_id, content_path]):
+            return None
+        
+        # Use custom build output path if set
+        if self.settings.get("build_output_path"):
+            build_output = self.settings["build_output_path"]
+        else:
+            log_folder = Path.cwd() / "log"
+            log_folder.mkdir(exist_ok=True)
+            build_output = str(log_folder)
+        
+        # Get the content path
+        content_abs_path = os.path.abspath(content_path)
+        
+        # Create depot file first
+        depot_content = f'''"DepotBuild"
+{{
+    "DepotID" "{depot_id}"
+    
+    "FileMapping"
+    {{
+        "LocalPath" "*"
+        "DepotPath" "."
+        "Recursive" "1"
+    }}
+}}
+'''
+        
+        depot_filename = f"depot_{depot_id}.vdf"
+        depot_path = self.vdf_dir / depot_filename
+        with open(depot_path, 'w', encoding='utf-8') as f:
+            f.write(depot_content)
+        
+        # Calculate relative path from vdf directory to content
+        content_rel_path = os.path.relpath(content_abs_path, self.vdf_dir)
+        
+        # Convert forward slashes to backslashes for Steam
+        content_rel_path = content_rel_path.replace('/', '\\')
+        
+        # Add trailing backslash if not present
+        if not content_rel_path.endswith('\\'):
+            content_rel_path += '\\'
+        
+        # Create app build VDF
+        vdf_content = f'''"AppBuild"
+{{
+    "AppID" "{app_id}"
+    "Desc" "{description}"
+    "Preview" "0"
+    "Local" ""'''
+        
+        # Only add setlive if branch is specified
+        if branch:
+            vdf_content += f'''
+    "SetLive" "{branch}"'''
+        else:
+            vdf_content += f'''
+    "SetLive" ""'''
+        
+        # Convert build output path to backslashes if specified
+        if build_output:
+            build_output_fixed = build_output.replace('/', '\\')
+            build_output_line = f'    "BuildOutput" "{build_output_fixed}"'
+        else:
+            build_output_line = '    "BuildOutput" ""'
+        
+        vdf_content += f'''
+    "ContentRoot" "{content_rel_path}"
+{build_output_line}
+    "Depots"
+    {{
+        "{depot_id}" "{depot_filename}"
+    }}
+}}
+'''
+        
+        # Save VDF config in vdf directory
+        config_path = self.vdf_dir / f"app_{app_id}.vdf"
+        with open(config_path, 'w', encoding='utf-8') as f:
+            f.write(vdf_content)
+        
+        return str(config_path)

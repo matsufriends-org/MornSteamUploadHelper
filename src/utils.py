@@ -3,23 +3,19 @@ Utility functions for Morn Steam Upload Helper.
 """
 
 import os
-import subprocess
-import platform
 import webbrowser
 from datetime import datetime
 from pathlib import Path
+# OS依存の処理はplatform_helpersからインポート
+from platform_helpers import PlatformUtilities, SteamCMDLauncher
 
 
 def open_content_folder(content_path):
     """Open the content folder in the system file explorer."""
     if content_path and os.path.exists(content_path):
         folder_path = os.path.dirname(content_path) if os.path.isfile(content_path) else content_path
-        if platform.system() == "Darwin":  # macOS
-            subprocess.run(["open", folder_path])
-        elif platform.system() == "Windows":
-            subprocess.run(["explorer", folder_path])
-        else:  # Linux/Unix
-            subprocess.run(["xdg-open", folder_path])
+        return PlatformUtilities.open_folder(folder_path)
+    return False
 
 
 def log_message(message):
@@ -73,6 +69,8 @@ def cleanup_temp_scripts():
 
 def ensure_executable(file_path):
     """Make a file executable on Unix systems."""
+    # platform_helpersではWindowsチェックが必要
+    import platform
     if platform.system() != "Windows" and file_path and os.path.exists(file_path):
         try:
             os.chmod(file_path, 0o755)
@@ -85,30 +83,8 @@ def ensure_executable(file_path):
 
 def get_steamcmd_path(content_builder_path):
     """Get the SteamCMD path based on the ContentBuilder path."""
-    if not content_builder_path:
-        return None
-    
-    # Auto-detect steamcmd path based on OS
-    steamcmd_filename = "steamcmd.exe" if platform.system() == "Windows" else "steamcmd.sh"
-    
-    # Check ContentBuilder/builder/steamcmd path
-    steamcmd_path = os.path.join(content_builder_path, "builder", steamcmd_filename)
-    if os.path.exists(steamcmd_path):
-        return steamcmd_path
-    
-    # Check ContentBuilder/builder_osx/steamcmd.sh for macOS
-    if platform.system() == "Darwin":
-        steamcmd_path = os.path.join(content_builder_path, "builder_osx", "steamcmd.sh")
-        if os.path.exists(steamcmd_path):
-            return steamcmd_path
-    
-    # Check ContentBuilder/builder_linux/steamcmd.sh for Linux
-    elif platform.system() == "Linux":
-        steamcmd_path = os.path.join(content_builder_path, "builder_linux", "steamcmd.sh")
-        if os.path.exists(steamcmd_path):
-            return steamcmd_path
-    
-    return None
+    # platform_helpersのSteamCMDLauncherを使用
+    return SteamCMDLauncher.get_steamcmd_path(content_builder_path)
 
 
 def create_directories(*paths):
@@ -119,27 +95,17 @@ def create_directories(*paths):
 
 def get_platform_terminal_command(script_path):
     """Get platform-specific terminal command."""
-    if platform.system() == "Darwin":  # macOS
-        return ['open', '-a', 'Terminal', script_path]
-    elif platform.system() == "Windows":
-        return ['start', 'cmd', '/k', script_path]
-    else:  # Linux
-        return ['gnome-terminal', '--', 'bash', script_path]
+    # platform_helpersに適切な引数を渡す
+    working_dir = os.path.dirname(script_path) or "."
+    return PlatformUtilities.get_platform_terminal_command(working_dir, script_path)
 
 
 def copy_to_clipboard(text, page=None):
     """Copy text to clipboard (cross-platform)."""
-    try:
-        if platform.system() == "Darwin":  # macOS
-            subprocess.run(['pbcopy'], input=text.encode('utf-8'), check=True)
-        elif platform.system() == "Windows":
-            subprocess.run(['clip'], input=text.encode('utf-8'), check=True)
-        else:  # Linux
-            subprocess.run(['xclip', '-selection', 'clipboard'], input=text.encode('utf-8'), check=True)
-        return True
-    except Exception as e:
-        log_message(f"クリップボードへのコピーに失敗: {e}")
-        return False
+    success = PlatformUtilities.copy_to_clipboard(text)
+    if not success:
+        log_message("クリップボードへのコピーに失敗")
+    return success
 
 
 def format_path_for_steam(path):
@@ -151,17 +117,7 @@ def format_path_for_steam(path):
 
 def is_process_running(process_name):
     """Check if a process is running."""
-    try:
-        if platform.system() == "Windows":
-            result = subprocess.run(['tasklist', '/FI', f'IMAGENAME eq {process_name}'], 
-                                  capture_output=True, text=True)
-            return process_name in result.stdout
-        else:
-            result = subprocess.run(['pgrep', '-x', process_name], 
-                                  capture_output=True)
-            return result.returncode == 0
-    except Exception:
-        return False
+    return PlatformUtilities.is_process_running(process_name)
 
 
 def get_timestamp():
