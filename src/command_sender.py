@@ -5,6 +5,7 @@ import subprocess
 import time
 from pathlib import Path
 from typing import Optional, Callable
+from platform_helpers import ConsoleMonitor
 
 
 class CommandSender:
@@ -409,29 +410,9 @@ end tell
                     log_callback(f"steamcmdプロセス待機中... ({elapsed:.0f}秒経過)")
             
             if process_found:
-                # Steam>プロンプトが表示されるまで待機（0.5秒ごとに確認）
-                if log_callback:
-                    log_callback("Steam>プロンプトを待機中...")
-                
-                prompt_wait_interval = 0.5  # 0.5秒ごとに確認
-                prompt_max_wait = 10  # 最大10秒待機
-                prompt_elapsed = 0
-                
-                while prompt_elapsed < prompt_max_wait:
-                    # 簡単な方法：一定時間待てばSteam>が表示される
-                    # 通常は2-3秒で表示される
-                    time.sleep(prompt_wait_interval)
-                    prompt_elapsed += prompt_wait_interval
-                    
-                    # 2.5秒経過したら十分とみなす
-                    if prompt_elapsed >= 2.5:
-                        if log_callback:
-                            log_callback(f"Steam>プロンプトの表示を待機完了（{prompt_elapsed:.1f}秒後）")
-                        break
-                    
-                    if int(prompt_elapsed * 2) % 2 == 0:  # 1秒ごとにログ
-                        if log_callback:
-                            log_callback(f"Steam>プロンプト待機中... ({prompt_elapsed:.1f}秒経過)")
+                # Steam>プロンプトが表示されるまで待機
+                # 汎用実装を使用
+                ConsoleMonitor.wait_for_steam_prompt(timeout=10.0, interval=0.5, log_callback=log_callback)
             else:
                 if log_callback:
                     log_callback("警告: steamcmdプロセスが検出できませんでした")

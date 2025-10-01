@@ -6,10 +6,12 @@ import time
 import webbrowser
 import platform
 import subprocess
+import threading
 from pathlib import Path
 
 from ui_helpers import DialogBuilder, PlatformCommands
 from command_sender import CommandSender
+from platform_helpers import ConsoleMonitor
 
 
 class UploadManager:
@@ -141,6 +143,9 @@ class UploadManager:
         
         self._log_message(f"実行コマンド: {upload_command}")
         
+        # アップロード進行中ダイアログを表示
+        self._show_upload_progress_dialog()
+        
         # プラットフォーム別の実行（この分岐は必要なので残す）
         if platform.system() == "Windows":
             self._execute_upload_windows(upload_command)
@@ -173,9 +178,13 @@ class UploadManager:
         
         if success:
             self._log_message("✓ アップロードコマンドを自動実行しました")
-            self._log_message("Steamコンソールでアップロードを開始しました。進行状況はコンソールで確認してください。")
+            self._log_message("アップロードが完了するまでお待ちください...")
+            # アップロード完了を監視
+            self._monitor_upload_completion()
         else:
             self._log_message("自動送信に失敗しました。")
+            # 進行中ダイアログを閉じる
+            self._close_upload_progress_dialog()
             # 失敗時は手動でダイアログを表示（フォールバック）
             self._show_manual_command_dialog(upload_command)
     
@@ -186,6 +195,8 @@ class UploadManager:
             self._execute_upload_macos(upload_command)
         else:
             # Linuxでは手動実行を促す
+            # 進行中ダイアログを閉じる
+            self._close_upload_progress_dialog()
             self._show_manual_command_dialog(upload_command)
     
     def _execute_upload_macos(self, upload_command: str):
@@ -201,9 +212,13 @@ class UploadManager:
         
         if success:
             self._log_message("✓ アップロードコマンドを自動実行しました")
-            self._log_message("Steamコンソールでアップロードを開始しました。進行状況はコンソールで確認してください。")
+            self._log_message("アップロードが完了するまでお待ちください...")
+            # アップロード完了を監視
+            self._monitor_upload_completion()
         else:
             self._log_message("自動送信に失敗しました。")
+            # 進行中ダイアログを閉じる
+            self._close_upload_progress_dialog()
             # 失敗時は手動でダイアログを表示（フォールバック）
             self._show_manual_command_dialog(upload_command)
     
@@ -236,6 +251,78 @@ class UploadManager:
         self.page.update()
         
         self._log_message(f"Please run in SteamCMD console: {upload_command}")
+    
+    def _show_upload_progress_dialog(self):
+        """アップロード進行中ダイアログを表示"""
+        self._upload_progress_dialog = ft.AlertDialog(
+            modal=True,
+            title=ft.Text("アップロード中"),
+            content=ft.Column([
+                ft.ProgressRing(width=40, height=40, stroke_width=3),
+                ft.Text("Steamへアップロード中です...", size=14),
+                ft.Container(height=10),
+                ft.Text("アップロードが完了するまでお待ちください", 
+                       size=12, color=ft.Colors.GREY),
+                ft.Text("進行状況はSteamCMDコンソールで確認できます", 
+                       size=12, color=ft.Colors.GREY),
+            ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=10),
+            actions=[]  # ボタンなし（キャンセル不可）
+        )
+        
+        self.page.overlay.append(self._upload_progress_dialog)
+        self._upload_progress_dialog.open = True
+        self.page.update()
+    
+    def _close_upload_progress_dialog(self):
+        """アップロード進行中ダイアログを閉じる"""
+        if hasattr(self, '_upload_progress_dialog') and self._upload_progress_dialog:
+            DialogBuilder._close_dialog(self.page, self._upload_progress_dialog)
+            self._upload_progress_dialog = None
+    
+    def _monitor_upload_completion(self):
+        """アップロードの完了を監視"""
+        def monitor_thread():
+            # Steam>プロンプトが戻ってくるまで監視
+            max_wait = 600  # 最大10分待機
+            check_interval = 1.0  # 1秒間隔でチェック
+            elapsed = 0
+            
+            while elapsed < max_wait:
+                # Steam>プロンプトが戻ってきたかチェック
+                if self._check_steam_prompt_returned():
+                    self._log_message("アップロードが完了しました！")
+                    # ダイアログを閉じる
+                    self._close_upload_progress_dialog()
+                    # 成功メッセージを表示
+                    DialogBuilder.show_success_dialog(
+                        self.page, 
+                        "アップロードが正常に完了しました！\nSteamパートナーサイトで確認してください。"
+                    )
+                    break
+                    
+                time.sleep(check_interval)
+                elapsed += check_interval
+                
+                # 10秒ごとに進捗をログ
+                if int(elapsed) % 10 == 0 and elapsed > 0:
+                    self._log_message(f"アップロード処理中... ({elapsed}秒経過)")
+            
+            if elapsed >= max_wait:
+                self._log_message("アップロード監視がタイムアウトしました")
+                self._close_upload_progress_dialog()
+                DialogBuilder.show_info_dialog(
+                    self.page,
+                    "アップロード処理が長時間かかっています。\nSteamCMDコンソールで状況を確認してください。"
+                )
+        
+        # 監視スレッドを開始
+        thread = threading.Thread(target=monitor_thread, daemon=True)
+        thread.start()
+    
+    def _check_steam_prompt_returned(self) -> bool:
+        """Steam>プロンプトが戻ってきたかチェック"""
+        # platform_helpersの汎用実装を使用
+        return ConsoleMonitor.check_steam_prompt()
     
     def _log_message(self, message: str):
         """ログメッセージ出力"""

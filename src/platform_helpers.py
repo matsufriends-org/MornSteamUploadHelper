@@ -472,6 +472,84 @@ class ConsoleMonitor:
     """プラットフォーム固有のコンソール監視処理"""
     
     @staticmethod
+    def check_steam_prompt(log_callback=None) -> bool:
+        """Steam>プロンプトが表示されているかチェック"""
+        system = platform.system()
+        
+        try:
+            if system == "Darwin":  # macOS
+                # AppleScriptでSteam>プロンプトをチェック
+                check_script = '''
+                tell application "Terminal"
+                    set hasPrompt to false
+                    try
+                        repeat with w in windows
+                            try
+                                set tabContent to contents of selected tab of w
+                                if tabContent contains "steamcmd" and tabContent ends with "Steam> " then
+                                    set hasPrompt to true
+                                    exit repeat
+                                end if
+                            end try
+                        end repeat
+                    end try
+                    return hasPrompt
+                end tell
+                '''
+                
+                result = subprocess.run(
+                    ['osascript', '-e', check_script],
+                    capture_output=True, text=True
+                )
+                
+                if result.returncode == 0:
+                    has_prompt = result.stdout.strip() == "true"
+                    if log_callback and has_prompt:
+                        log_callback("Steam>プロンプトを検出しました")
+                    return has_prompt
+                    
+            elif system == "Windows":
+                # Windows版の実装が必要
+                # 現在は簡易的にタイマーベースで判定
+                return False
+                
+            else:  # Linux
+                # Linux版も未実装
+                return False
+                
+        except Exception as e:
+            if log_callback:
+                log_callback(f"Steam>プロンプトチェックエラー: {e}")
+            return False
+    
+    @staticmethod
+    def wait_for_steam_prompt(timeout: float = 10.0, interval: float = 0.5, log_callback=None) -> bool:
+        """Steam>プロンプトが表示されるまで待機"""
+        elapsed = 0.0
+        
+        if log_callback:
+            log_callback("Steam>プロンプトを待機中...")
+        
+        while elapsed < timeout:
+            # Steam>プロンプトをチェック
+            if ConsoleMonitor.check_steam_prompt(log_callback=None):  # ログは多すぎるので抑制
+                if log_callback:
+                    log_callback(f"Steam>プロンプトを検出しました ({elapsed:.1f}秒後)")
+                return True
+            
+            time.sleep(interval)
+            elapsed += interval
+            
+            # 1秒ごとに進捗ログ
+            if int(elapsed * 2) % 2 == 0 and elapsed > 0:
+                if log_callback:
+                    log_callback(f"Steam>プロンプト待機中... ({elapsed:.0f}秒経過)")
+        
+        if log_callback:
+            log_callback(f"Steam>プロンプト待機タイムアウト ({timeout}秒)")
+        return False
+    
+    @staticmethod
     def check_console_status(monitor_count: int, grace_period_checks: int) -> dict:
         """コンソールの状態をチェック"""
         system = platform.system()
