@@ -34,7 +34,6 @@ from constants import *
 from steam_upload_helper import SteamUploadHelper
 from utils import *
 from dialogs import *
-from console_monitor import start_console_monitor
 
 def main(page: ft.Page):
     page.title = APP_NAME
@@ -881,8 +880,14 @@ def main(page: ft.Page):
                     log_message(f"一時スクリプトファイルを削除: {script_path.name}")
         except Exception as e:
             log_message(f"警告: 一時スクリプトファイルの削除エラー: {e}")
-    
-    
+
+
+    def start_console_monitor_wrapper():
+        """Wrapper to call console monitor with required arguments"""
+        from console_monitor import start_console_monitor as console_monitor_func
+        console_monitor_func(helper, login_status, login_button, enable_controls, page)
+
+
     def login_to_steam_console(e):
         # Prevent multiple console openings
         if helper.steamcmd_terminal:
@@ -1132,7 +1137,7 @@ TEMP_LOG="/tmp/steamcmd_login_$$.log"
                                 page.update()
                                 
                                 # Start console monitor after successful login
-                                start_console_monitor()
+                                start_console_monitor_wrapper()
                                 break
                             elif status == "failed":
                                 helper.is_logged_in = False
@@ -1159,7 +1164,7 @@ TEMP_LOG="/tmp/steamcmd_login_$$.log"
                         login_status.color = ft.Colors.ORANGE
                         confirm_login_button.visible = True
                         # Start console monitor even during login check
-                        start_console_monitor()
+                        start_console_monitor_wrapper()
                     
                     page.update()
                 
@@ -1228,11 +1233,29 @@ pause
                 login_button.disabled = True
 
                 # Start console monitoring thread
-                start_console_monitor()
+                start_console_monitor_wrapper()
 
                 # Start a thread to monitor for successful login
                 def monitor_login_status():
                     import time
+
+                    # Record log file positions to only check new content (avoid false positives from old logs)
+                    log_positions = {}
+                    steamcmd_path = helper.settings.get("steamcmd_path", "")
+                    if steamcmd_path:
+                        steamcmd_dir = os.path.dirname(os.path.abspath(steamcmd_path))
+                        for log_path in [
+                            os.path.join(steamcmd_dir, "logs", "console_log.txt"),
+                            os.path.join(steamcmd_dir, "logs", "stderr.txt"),
+                            os.path.join(steamcmd_dir, "..", "logs", "console_log.txt"),
+                        ]:
+                            abs_path = os.path.abspath(log_path)
+                            if os.path.exists(abs_path):
+                                try:
+                                    log_positions[abs_path] = os.path.getsize(abs_path)
+                                except:
+                                    pass
+
                     time.sleep(2)  # Wait a bit for login to start
 
                     # Keep checking until login succeeds or fails (max 30 seconds)
@@ -1294,16 +1317,18 @@ pause
                                         log_path = os.path.abspath(log_path)
                                         if os.path.exists(log_path):
                                             try:
-                                                # Read last 100 lines
+                                                # Read only NEW content after login started
                                                 with open(log_path, 'r', encoding='utf-8', errors='ignore') as f:
-                                                    lines = f.readlines()
-                                                    last_lines = ''.join(lines[-100:])
+                                                    # Seek to position where we started
+                                                    start_pos = log_positions.get(log_path, 0)
+                                                    f.seek(start_pos)
+                                                    new_content = f.read()
 
                                                     # Check for login success indicators (multiple patterns)
                                                     login_success = (
-                                                        "Waiting for user info...OK" in last_lines or
-                                                        "Logged in OK" in last_lines or
-                                                        ("Logging in user" in last_lines and "OK" in last_lines and "Steam>" in last_lines)
+                                                        "Waiting for user info...OK" in new_content or
+                                                        "Logged in OK" in new_content or
+                                                        ("Logging in user" in new_content and "OK" in new_content and "Steam>" in new_content)
                                                     )
 
                                                     if login_success:
@@ -1322,7 +1347,7 @@ pause
                                                         return
 
                                                     # Check for login failures
-                                                    if "FAILED login" in last_lines or "Invalid Password" in last_lines or "Rate Limit Exceeded" in last_lines:
+                                                    if "FAILED login" in new_content or "Invalid Password" in new_content or "Rate Limit Exceeded" in new_content:
                                                         log_message(f"ログイン失敗を検出しました (from {os.path.basename(log_path)})")
                                                         helper.is_logged_in = False
                                                         helper.steamcmd_terminal = False
@@ -1414,7 +1439,7 @@ echo ""
                 login_button.disabled = True
 
                 # Start console monitoring thread
-                start_console_monitor()
+                start_console_monitor_wrapper()
 
                 # Start a thread to monitor for successful login
                 def monitor_login_status():
