@@ -4,7 +4,7 @@ Steamへのゲームアップロードを簡単にするGUIツールです。複
 
 ![License](https://img.shields.io/badge/license-Unlicense-blue.svg)
 ![Python](https://img.shields.io/badge/python-3.7+-blue.svg)
-![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg)
+![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS-lightgrey.svg)
 
 ## 🎮 主な機能
 
@@ -12,7 +12,7 @@ Steamへのゲームアップロードを簡単にするGUIツールです。複
 - **設定の保存**: 複数のアップロード設定を保存・管理
 - **自動VDF生成**: VDFファイルを自動で作成
 - **自動コマンド送信**: Windows/macOSでSteamCMDへ自動でコマンドを送信
-- **マルチプラットフォーム対応**: Windows、macOS、Linuxで動作
+- **マルチプラットフォーム対応**: Windows、macOSで動作
 
 ## 📋 必要なもの
 
@@ -59,10 +59,8 @@ Steamへのゲームアップロードを簡単にするGUIツールです。複
 chmod +x MornSteamUploadHelper.command
 ```
 
-### Linux
-```bash
-./MornSteamUploadHelper.command
-```
+### ⚠️ Linux非対応について
+現在、Linux環境では動作確認が取れていないため、サポート対象外となっています。Windows、macOSのいずれかをご利用ください。
 
 ### 使用手順
 
