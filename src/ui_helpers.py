@@ -28,13 +28,21 @@ class DialogBuilder:
             on_click=lambda e: SteamPageOpener.open_page("depots", app_id_field.value) if app_id_field.value else None
         )
         
-        if enabled_callback:
-            app_id_field.on_change = lambda e: enabled_callback(build_btn, depot_btn, bool(e.control.value and e.control.value.strip()))
+        # app_idフィールドの値に応じてボタンを有効/無効にする
+        def update_buttons(e):
+            enabled = bool(e.control.value and e.control.value.strip())
+            build_btn.disabled = not enabled
+            depot_btn.disabled = not enabled
+            # ボタンの更新を通知
+            if hasattr(e.page, 'update'):
+                e.page.update()
+        
+        app_id_field.on_change = update_buttons
         
         return build_btn, depot_btn
     
     @staticmethod
-    def create_folder_picker(target_field, dlg=None):
+    def create_folder_picker(target_field, dlg=None, on_selection_callback=None):
         """フォルダ選択ボタンとピッカーを作成"""
         def select_folder(e):
             def on_folder_selected(e: ft.FilePickerResultEvent):
@@ -44,6 +52,9 @@ class DialogBuilder:
                         dlg.update()
                     else:
                         e.page.update()
+                    # コールバック実行
+                    if on_selection_callback:
+                        on_selection_callback()
             
             folder_picker = ft.FilePicker(on_result=on_folder_selected)
             e.page.overlay.append(folder_picker)
@@ -184,19 +195,27 @@ class ConfigDialogBuilder:
         """設定ダイアログのコンテンツを構築"""
         build_btn, depot_btn = steam_buttons
         
+        # コントロールリストを構築（Noneを除外）
+        controls = []
+        
+        # 名前フィールドが存在し、読み取り専用でない場合のみ追加
+        if 'name' in fields and not fields['name'].read_only:
+            controls.append(fields['name'])
+        
+        controls.extend([
+            fields['app_id'],
+            ft.Row([build_btn, depot_btn]),
+            fields['depot_id'],
+            fields['branch'],
+            ft.Text("• 入力時は自動的にそのブランチに反映されます", size=11, color=ft.Colors.GREY),
+            ft.Text("• 'public'と入力するとデフォルトブランチとして公開", size=11, color=ft.Colors.GREY),
+            ft.Container(height=5),
+            fields['description'],
+            ft.Row([fields['content_path'], folder_picker_btn])
+        ])
+        
         return ft.Container(
-            content=ft.Column([
-                fields['name'] if 'name' in fields and not fields['name'].read_only else None,
-                fields['app_id'],
-                ft.Row([build_btn, depot_btn]),
-                fields['depot_id'],
-                fields['branch'],
-                ft.Text("• 入力時は自動的にそのブランチに反映されます", size=11, color=ft.Colors.GREY),
-                ft.Text("• 'public'と入力するとデフォルトブランチとして公開", size=11, color=ft.Colors.GREY),
-                ft.Container(height=5),
-                fields['description'],
-                ft.Row([fields['content_path'], folder_picker_btn])
-            ], tight=True),
+            content=ft.Column(controls, tight=True),
             width=400,
             height=450 if 'name' not in fields or fields['name'].read_only else 500
         )

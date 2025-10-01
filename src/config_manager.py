@@ -144,32 +144,61 @@ class ConfigManager:
         fields = ConfigDialogBuilder.build_config_fields()
         
         # Steamページボタンの設定
-        def update_steam_buttons(build_btn, depot_btn, enabled):
-            build_btn.disabled = not enabled
-            depot_btn.disabled = not enabled
-            dlg.update()
-        
         steam_buttons = DialogBuilder.create_steam_page_buttons(
-            fields['app_id'], 
-            update_steam_buttons
+            fields['app_id']
         )
         
-        # フォルダ選択ボタン
-        folder_picker_btn = DialogBuilder.create_folder_picker(fields['content_path'], None)
+        # 作成ボタンの参照を保持（先に定義）
+        create_button = ft.TextButton("作成", disabled=True)
+        
+        # 必須フィールドの検証関数を先に定義
+        def validate_fields(e=None):
+            """必須フィールドが全て入力されているかチェック"""
+            is_valid = (
+                fields['name'].value and fields['name'].value.strip() and
+                fields['app_id'].value and fields['app_id'].value.strip() and
+                fields['depot_id'].value and fields['depot_id'].value.strip() and
+                fields['description'].value and fields['description'].value.strip() and
+                fields['content_path'].value and fields['content_path'].value.strip()
+            )
+            create_button.disabled = not is_valid
+            if hasattr(e, 'page') and e.page:
+                e.page.update()
+        
+        # フォルダ選択ボタン（検証関数付き）
+        def on_folder_selected():
+            validate_fields()
+        
+        folder_picker_btn = DialogBuilder.create_folder_picker(fields['content_path'], None, on_folder_selected)
         
         # ダイアログコンテンツ
         content = ConfigDialogBuilder.build_config_dialog_content(
             fields, folder_picker_btn, steam_buttons
         )
         
+        # 各フィールドの変更を監視
+        fields['name'].on_change = validate_fields
+        fields['app_id'].on_change = validate_fields
+        fields['depot_id'].on_change = validate_fields
+        fields['description'].on_change = validate_fields
+        fields['content_path'].on_change = validate_fields
+        
         def create_config(e):
-            # 必須フィールドチェック
+            # 必須フィールドチェック（追加の安全チェック）
             if not fields['name'].value:
                 DialogBuilder.show_error_dialog(self.page, "設定名は必須です！")
                 return
                 
             if not fields['app_id'].value or not fields['depot_id'].value:
                 DialogBuilder.show_error_dialog(self.page, "App IDとDepot IDは必須です！")
+                return
+                
+            if not fields['description'].value:
+                DialogBuilder.show_error_dialog(self.page, "アップロード説明は必須です！")
+                return
+                
+            if not fields['content_path'].value:
+                DialogBuilder.show_error_dialog(self.page, "コンテンツパスは必須です！")
                 return
             
             # 設定を作成
@@ -196,13 +225,15 @@ class ConfigManager:
             if self.on_config_changed:
                 self.on_config_changed()
         
+        create_button.on_click = create_config
+        
         dlg = ft.AlertDialog(
             modal=True,
             title=ft.Text("新規設定"),
             content=content,
             actions=[
                 ft.TextButton("キャンセル", on_click=lambda e: DialogBuilder._close_dialog(self.page, dlg)),
-                ft.TextButton("作成", on_click=create_config)
+                create_button
             ]
         )
         
@@ -218,17 +249,11 @@ class ConfigManager:
         current_config = self.helper.upload_configs.get(self.config_dropdown.value, {})
         current_config['name'] = self.config_dropdown.value
         
-        fields = ConfigDialogBuilder.build_config_fields(current_config, readonly_name=True)
+        fields = ConfigDialogBuilder.build_config_fields(current_config, readonly_name=False)
         
         # Steamページボタンの設定
-        def update_steam_buttons(build_btn, depot_btn, enabled):
-            build_btn.disabled = not enabled
-            depot_btn.disabled = not enabled
-            dlg.update()
-        
         steam_buttons = DialogBuilder.create_steam_page_buttons(
-            fields['app_id'], 
-            update_steam_buttons
+            fields['app_id']
         )
         
         # 初期状態を設定
@@ -236,18 +261,68 @@ class ConfigManager:
             steam_buttons[0].disabled = False
             steam_buttons[1].disabled = False
         
-        # フォルダ選択ボタン
-        folder_picker_btn = DialogBuilder.create_folder_picker(fields['content_path'], None)
+        # 保存ボタンの参照を保持
+        save_button = ft.TextButton("保存", disabled=True)
+        
+        # 必須フィールドの検証関数
+        def validate_fields(e=None):
+            """必須フィールドが全て入力されているかチェック"""
+            is_valid = (
+                fields['name'].value and fields['name'].value.strip() and
+                fields['app_id'].value and fields['app_id'].value.strip() and
+                fields['depot_id'].value and fields['depot_id'].value.strip() and
+                fields['description'].value and fields['description'].value.strip() and
+                fields['content_path'].value and fields['content_path'].value.strip()
+            )
+            save_button.disabled = not is_valid
+            if hasattr(e, 'page') and e.page:
+                e.page.update()
+        
+        # フォルダ選択ボタン（検証関数付き）
+        def on_folder_selected():
+            validate_fields()
+        
+        folder_picker_btn = DialogBuilder.create_folder_picker(fields['content_path'], None, on_folder_selected)
         
         # ダイアログコンテンツ
         content = ConfigDialogBuilder.build_config_dialog_content(
             fields, folder_picker_btn, steam_buttons
         )
         
+        # 各フィールドの変更を監視
+        fields['name'].on_change = validate_fields
+        fields['app_id'].on_change = validate_fields
+        fields['depot_id'].on_change = validate_fields
+        fields['description'].on_change = validate_fields
+        fields['content_path'].on_change = validate_fields
+        
+        # 初期検証を実行
+        validate_fields()
+        
         def save_config(e):
-            # 必須フィールドチェック
+            # 必須フィールドチェック（追加の安全チェック）
+            if not fields['name'].value:
+                DialogBuilder.show_error_dialog(self.page, "設定名は必須です！")
+                return
+                
             if not fields['app_id'].value or not fields['depot_id'].value:
                 DialogBuilder.show_error_dialog(self.page, "App IDとDepot IDは必須です！")
+                return
+                
+            if not fields['description'].value:
+                DialogBuilder.show_error_dialog(self.page, "アップロード説明は必須です！")
+                return
+                
+            if not fields['content_path'].value:
+                DialogBuilder.show_error_dialog(self.page, "コンテンツパスは必須です！")
+                return
+            
+            new_name = fields['name'].value.strip()
+            old_name = self.config_dropdown.value
+            
+            # 設定名が変更された場合の重複チェック
+            if new_name != old_name and new_name in self.helper.upload_configs:
+                DialogBuilder.show_error_dialog(self.page, f"設定名 '{new_name}' は既に存在します！")
                 return
             
             # 設定を更新
@@ -259,16 +334,29 @@ class ConfigManager:
                 "content_path": fields['content_path'].value
             }
             
-            self.helper.save_upload_config(self.config_dropdown.value, config)
+            # 設定名が変更された場合
+            if new_name != old_name:
+                # 古い設定を削除
+                self.helper.upload_configs.pop(old_name, None)
+                # 新しい名前で保存
+                self.helper.save_upload_config(new_name, config)
+                # ドロップダウンを更新
+                self.config_dropdown.options = [ft.dropdown.Option(name) for name in self.helper.upload_configs.keys()]
+                self.config_dropdown.value = new_name
+            else:
+                # 同じ名前で更新
+                self.helper.save_upload_config(old_name, config)
             
             # 設定を再読み込み
             self.load_upload_config()
             
             DialogBuilder._close_dialog(self.page, dlg)
-            self._log_message(f"設定を更新しました: {self.config_dropdown.value}")
+            self._log_message(f"設定を更新しました: {new_name}")
             
             if self.on_config_changed:
                 self.on_config_changed()
+        
+        save_button.on_click = save_config
         
         dlg = ft.AlertDialog(
             modal=True,
@@ -276,7 +364,7 @@ class ConfigManager:
             content=content,
             actions=[
                 ft.TextButton("キャンセル", on_click=lambda e: DialogBuilder._close_dialog(self.page, dlg)),
-                ft.TextButton("保存", on_click=save_config)
+                save_button
             ]
         )
         
