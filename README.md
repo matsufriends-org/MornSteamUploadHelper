@@ -46,23 +46,20 @@ Steamへのゲームアップロードを簡単にするGUIツールです。複
 
 ## 🎯 使い方
 
-### Windows
-`MornSteamUploadHelper.bat`をダブルクリック
+### 🪟 Windows
+   `MornSteamUploadHelper.bat`をダブルクリック
 
-### macOS
-`MornSteamUploadHelper.command`をダブルクリック
+### 🍎 macOS
+   **初回のみ**: 権限の設定が必要な場合があります
+   1. ターミナルを開く
+   2. 以下のコマンドを実行:
+   ```bash
+   chmod +x MornSteamUploadHelper.command
+   ```
 
-**初回のみ**: 権限の設定が必要な場合があります
-1. ターミナルを開く
-2. 以下のコマンドを実行:
-```bash
-chmod +x MornSteamUploadHelper.command
-```
-
-### ⚠️ Linux非対応について
-現在、Linux環境では動作確認が取れていないため、サポート対象外となっています。Windows、macOSのいずれかをご利用ください。
-
-### 使用手順
+   `MornSteamUploadHelper.command`をダブルクリック
+   
+### ⚙️ 使用手順
 
 1. **ContentBuilderの設定**（初回のみ）:
    - 「基本設定」をクリック
@@ -90,3 +87,12 @@ chmod +x MornSteamUploadHelper.command
 - **Windows/macOS**: アップロードコマンドは自動でSteamCMDコンソールに送信されます
 - **重要**: コマンド送信時にコンソールウィンドウにフォーカスを移動するため、**アップロード開始後は他の操作をしないことを推奨します**
 - アップロードの進行状況はSteamCMDコンソールで確認できます
+
+# ライセンス
+The Unlicense（パブリックドメイン）
+
+# 開発
+この拡張機能は[Claude Code](https://claude.ai/code)を使用して作成されました。
+
+# 貢献
+Issue報告やPull Requestは大歓迎です！
