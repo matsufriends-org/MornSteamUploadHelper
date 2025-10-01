@@ -34,6 +34,7 @@ class SteamUploadHelper:
         
         # Process management
         self.steamcmd_process = None
+        self.steamcmd_cmd_process_id = None  # Windows: cmd.exe process ID
         self.is_logged_in = False
         self.output_queue = queue.Queue()
         self.console_monitor_thread = None

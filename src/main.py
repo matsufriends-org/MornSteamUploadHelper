@@ -274,12 +274,12 @@ def main(page: ft.Page):
         ),
         disabled=True  # Enabled after login
     )
-    
-    
+
+
     def log_message(message):
         timestamp = time.strftime("%H:%M:%S")
         print(f"[{timestamp}] {message}")
-    
+
     def confirm_login_success(e):
         """Manually confirm login success when auto-detection fails"""
         if helper.steamcmd_terminal:
@@ -287,20 +287,26 @@ def main(page: ft.Page):
             login_status.value = f"{username_field.value} としてログイン中"
             login_status.color = ft.Colors.GREEN
             enable_controls(True)
-            log_message("ログインが手動で確認されました！")
+            log_message("Steamログインが正常に完了しました！")
             confirm_login_button.visible = False
-            # Save username
+            # Save username (NOT password)
             helper.settings["username"] = username_field.value
             helper.save_settings()
-            # Start console monitor
-            start_console_monitor()
+
+            # Clean up temporary script files for security
+            cleanup_temp_scripts()
+
+            # Clear password field for security
+            password_field.value = ""
+            steam_guard_field.value = ""
+
             page.update()
     
     def enable_controls(enabled=True):
         # Configuration controls are always available
         config_dropdown.disabled = False
         new_config_button.disabled = False
-        
+
         # These buttons only work with a selected configuration
         if config_dropdown.value:
             delete_config_button.disabled = False
@@ -880,14 +886,15 @@ def main(page: ft.Page):
         """Start monitoring the console to detect if it's closed"""
         if helper.console_monitor_thread and helper.console_monitor_thread.is_alive():
             return  # Already monitoring
-        
+
         def monitor_console():
             log_message("コンソール監視を開始しました...")
             monitor_count = 0
-            
-            while helper.is_logged_in and helper.steamcmd_terminal:
+            grace_period_checks = 2  # First 4 seconds (2 * 2s) grace period for process startup
+
+            while helper.steamcmd_terminal:
                 monitor_count += 1
-                if monitor_count % 5 == 0:  # Log every 10 seconds
+                if monitor_count % 10 == 0:  # Log every 20 seconds
                     log_message(f"コンソール監視中... (チェック #{monitor_count})")
                 # Check if console is still open based on platform
                 console_closed = False
@@ -958,10 +965,14 @@ def main(page: ft.Page):
                         
                         has_steamcmd = "steamcmd.exe" in result.stdout
                         has_cmd_with_steam = "SteamCMD" in cmd_result.stdout or "steamcmd_session" in cmd_result.stdout
-                        
+
+                        # Apply grace period - don't close console during initial startup
                         if not has_steamcmd and not has_cmd_with_steam:
-                            console_closed = True
-                            log_message(f"Windows: SteamCMDコンソールが見つかりません (steamcmd.exe: {has_steamcmd}, cmd: {has_cmd_with_steam})")
+                            if monitor_count > grace_period_checks:
+                                console_closed = True
+                                log_message(f"Windows: SteamCMDコンソールが見つかりません (steamcmd.exe: {has_steamcmd}, cmd: {has_cmd_with_steam})")
+                            else:
+                                log_message(f"Windows: 起動待機中... ({monitor_count}/{grace_period_checks}) (steamcmd.exe: {has_steamcmd}, cmd: {has_cmd_with_steam})")
                         else:
                             if monitor_count % 10 == 0:
                                 log_message(f"Windows: SteamCMDコンソール検出 (steamcmd.exe: {has_steamcmd}, cmd: {has_cmd_with_steam})")
@@ -1294,6 +1305,7 @@ TEMP_LOG="/tmp/steamcmd_login_$$.log"
                 
                 # Similar for Windows
                 script_content = f'''@echo off
+title MornSteamCMD
 echo SteamCMD コンソール - このウィンドウを閉じないでください
 echo このコンソールはアップロードに使用されます
 echo.
@@ -1308,9 +1320,26 @@ pause
                 script_path.parent.mkdir(exist_ok=True)
                 with open(script_path, 'w') as f:
                     f.write(script_content)
-                
-                subprocess.Popen(['start', 'cmd', '/k', str(script_path)], shell=True)
-                
+
+                # Use PowerShell to start cmd and capture the process ID
+                # DON'T redirect stdin - SteamCMD needs console input!
+                abs_script_path = os.path.abspath(script_path)
+                ps_command = f'$p = Start-Process cmd -ArgumentList "/k", "{abs_script_path}" -PassThru -WindowStyle Normal; Write-Output $p.Id'
+
+                result = subprocess.run(
+                    ['powershell', '-NoProfile', '-Command', ps_command],
+                    capture_output=True,
+                    text=True
+                )
+
+                if result.returncode == 0 and result.stdout.strip():
+                    helper.steamcmd_cmd_process_id = int(result.stdout.strip())
+                    log_message(f"SteamCMDコンソールを起動しました (PID: {helper.steamcmd_cmd_process_id})")
+                    log_message("VBScriptでコマンドを送信します（フォーカス不要）")
+                else:
+                    log_message(f"警告: プロセスIDの取得に失敗しました: {result.stderr}")
+                    helper.steamcmd_cmd_process_id = None
+
                 helper.steamcmd_terminal = True
                 log_message("SteamCMDコンソールが開きました。コマンドウィンドウでログインしてください。")
                 log_message("使用方法: +login ユーザー名 パスワード [Steam Guardコード]")
@@ -1324,63 +1353,66 @@ pause
                 # Test button is always enabled, no need to update
                 
                 login_button.disabled = True
-                
+
                 # Start console monitoring thread
                 start_console_monitor()
-                
+
                 # Start a thread to monitor for successful login
                 def monitor_login_status():
                     import time
                     time.sleep(3)  # Wait a bit for login to start
-                    
-                    # Check for rate limit error
-                    rate_limit_detected = False
-                    for i in range(10):  # Check for 10 seconds
+
+                    # Keep checking until login succeeds or fails (max 60 seconds)
+                    check_count = 0
+                    max_checks = 30  # 30 * 2 seconds = 60 seconds max
+
+                    while helper.steamcmd_terminal and not helper.is_logged_in and check_count < max_checks:
                         try:
-                            # Check if Terminal window contains rate limit error
-                            check_script = '''
-                            tell application "Terminal"
-                                set rateLimit to false
-                                try
-                                    repeat with w in windows
-                                        if (contents of selected tab of w) contains "Rate Limit Exceeded" then
-                                            set rateLimit to true
-                                            exit repeat
-                                        end if
-                                    end repeat
-                                end try
-                                return rateLimit
-                            end tell
-                            '''
+                            # Check for steamcmd.exe process
                             result = subprocess.run(
-                                ['osascript', '-e', check_script],
+                                ['tasklist', '/FI', 'IMAGENAME eq steamcmd.exe'],
                                 capture_output=True, text=True
                             )
-                            if result.stdout.strip() == "true":
-                                rate_limit_detected = True
+
+                            has_steamcmd = "steamcmd.exe" in result.stdout
+
+                            if not has_steamcmd:
+                                # Process ended - console closed or login failed
+                                log_message("SteamCMDプロセスが終了しました。")
+                                helper.is_logged_in = False
+                                helper.steamcmd_terminal = False
+                                login_status.value = "未ログイン"
+                                login_status.color = ft.Colors.RED
+                                login_button.disabled = False
+                                enable_controls(False)
+                                confirm_login_button.visible = False
+                                page.update()
                                 break
-                        except:
+
+                            # Debug logging
+                            if check_count % 5 == 0:  # Log every 10 seconds
+                                log_message(f"ログインチェック #{check_count}: steamcmd.exe実行中")
+
+                        except Exception as e:
+                            log_message(f"ログイン監視エラー: {e}")
                             pass
-                        time.sleep(1)
-                    
-                    if rate_limit_detected:
-                        # Handle rate limit error
-                        helper.is_logged_in = False
-                        helper.steamcmd_terminal = False
-                        login_status.value = "ログイン失敗 - レート制限"
-                        login_status.color = ft.Colors.RED
-                        login_button.disabled = False
-                        log_message("Login failed due to rate limit. Please wait 5-10 minutes.")
-                        show_error_dialog("Rate limit exceeded! Please wait 5-10 minutes before trying again.")
-                    elif helper.steamcmd_terminal:
-                        # Don't assume success - keep monitoring
-                        # User needs to actually complete login
-                        pass
-                    
+
+                        time.sleep(2)  # Check every 2 seconds
+                        check_count += 1
+                        page.update()
+
+                    if check_count >= max_checks and not helper.is_logged_in:
+                        log_message("ログイン監視がタイムアウトしました。手動でログインを確認する必要があるかもしれません。")
+                        login_status.value = "ログインタイムアウト - コンソールを確認してください"
+                        login_status.color = ft.Colors.ORANGE
+                        confirm_login_button.visible = True
+                        # Start console monitor even during login check
+                        start_console_monitor()
+
                     page.update()
-                
+
                 threading.Thread(target=monitor_login_status, daemon=True).start()
-                
+
                 page.update()
                 return
             else:  # Linux
@@ -1856,20 +1888,163 @@ return "OK"
                     log_message(f"Command copied to clipboard: {upload_command}")
                     
             elif platform.system() == "Windows":
-                # For Windows, copy to clipboard
+                # For Windows, use WriteConsoleInput to send input directly to console buffer
+                # This method does NOT require focus and won't interfere with user's current window
                 try:
-                    subprocess.run(['clip'], input=upload_command.encode(), check=True, shell=True)
-                    log_message("=" * 50)
-                    log_message("アップロードコマンドがクリップボードにコピーされました！")
-                    log_message("=" * 50)
-                    log_message(f"コマンド: {upload_command}")
-                    log_message("")
-                    log_message("1. SteamCMDコンソールウィンドウをクリック")
-                    log_message("2. Ctrl+Vでコマンドをペースト")
-                    log_message("3. Enterキーでアップロードを開始")
-                    log_message("=" * 50)
-                except:
-                    log_message(f"SteamCMDコンソールで実行してください: {upload_command}")
+                    log_message(f"デバッグ: アップロードコマンド = {upload_command}")
+                    log_message("WriteConsoleInputを使用してコンソールに直接入力します（フォーカス不要）...")
+
+                    log_message("コマンドを送信します（短時間フォーカス方式）...")
+
+                    # Escape command for PowerShell
+                    escaped_command = upload_command.replace('"', '`"').replace("'", "''")
+
+                    # Use same method as test button - SendKeys with brief focus
+                    ps_script = f'''
+Add-Type -AssemblyName System.Windows.Forms
+
+Add-Type @"
+    using System;
+    using System.Runtime.InteropServices;
+    using System.Text;
+
+    public class InputHelper {{
+        [DllImport("user32.dll")]
+        public static extern bool EnumWindows(EnumWindowsProc enumProc, IntPtr lParam);
+
+        [DllImport("user32.dll")]
+        public static extern int GetWindowText(IntPtr hWnd, StringBuilder lpString, int nMaxCount);
+
+        [DllImport("user32.dll")]
+        public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
+
+        [DllImport("user32.dll")]
+        public static extern bool IsWindowVisible(IntPtr hWnd);
+
+        [DllImport("user32.dll")]
+        public static extern bool SetForegroundWindow(IntPtr hWnd);
+
+        [DllImport("user32.dll")]
+        public static extern IntPtr GetForegroundWindow();
+
+        [DllImport("user32.dll")]
+        public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+
+        public delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
+
+        public const int SW_RESTORE = 9;
+    }}
+"@
+
+# Find console window
+$candidates = @()
+$callback = {{
+    param($hWnd, $lParam)
+    $sb = New-Object System.Text.StringBuilder 256
+    [InputHelper]::GetWindowText($hWnd, $sb, $sb.Capacity) | Out-Null
+    $title = $sb.ToString()
+
+    if ([InputHelper]::IsWindowVisible($hWnd)) {{
+        if ($title -like "*steamcmd*" -or $title -like "*MornSteamCMD*") {{
+            $procId = 0
+            [InputHelper]::GetWindowThreadProcessId($hWnd, [ref]$procId) | Out-Null
+            $proc = Get-Process -Id $procId -ErrorAction SilentlyContinue
+
+            $obj = [PSCustomObject]@{{
+                Handle = $hWnd
+                Title = $title
+                PID = $procId
+                ProcessName = if ($proc) {{ $proc.ProcessName }} else {{ "Unknown" }}
+            }}
+            $script:candidates += $obj
+        }}
+    }}
+    return $true
+}}
+
+$candidates = @()
+[InputHelper]::EnumWindows($callback, [IntPtr]::Zero) | Out-Null
+
+if ($candidates.Count -eq 0) {{{{
+    Write-Output "NOTFOUND"
+    exit 1
+}}}}
+
+# Select best candidate
+$targetWindow = $null
+foreach ($cand in $candidates) {{
+    if ($cand.Title -like "*MornSteamCMD*") {{
+        $targetWindow = $cand
+        break
+    }}
+}}
+if ($targetWindow -eq $null) {{
+    foreach ($cand in $candidates) {{
+        if ($cand.ProcessName -eq "conhost") {{
+            $targetWindow = $cand
+            break
+        }}
+    }}
+}}
+if ($targetWindow -eq $null) {{
+    $targetWindow = $candidates[0]
+}}
+
+# Save current foreground window
+$originalWindow = [InputHelper]::GetForegroundWindow()
+
+# Focus and send (minimal delay)
+[InputHelper]::SetForegroundWindow($targetWindow.Handle) | Out-Null
+Start-Sleep -Milliseconds 80
+
+try {{
+    # Send command + enter in one shot (fastest)
+    [System.Windows.Forms.SendKeys]::SendWait("{escaped_command}{{ENTER}}")
+    Write-Output "SUCCESS"
+}} catch {{
+    Write-Output "ERROR: $_"
+    exit 1
+}} finally {{
+    # Restore immediately
+    if ($originalWindow -ne [IntPtr]::Zero) {{
+        [InputHelper]::SetForegroundWindow($originalWindow) | Out-Null
+    }}
+}}
+'''
+
+                    log_message("PowerShellスクリプトを実行中...")
+
+                    result = subprocess.run(
+                        ['powershell', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', ps_script],
+                        capture_output=True,
+                        text=True,
+                        timeout=15
+                    )
+
+                    # Log output for debugging
+                    log_message("=== PowerShell実行結果 ===")
+                    log_message(f"Return code: {result.returncode}")
+                    for line in result.stdout.splitlines():
+                        log_message(f"  {line}")
+                    if result.stderr:
+                        log_message(f"STDERR: {result.stderr}")
+                    log_message("=========================")
+
+                    if "SUCCESS" in result.stdout:
+                        log_message(f"✓ アップロードコマンドを自動実行しました: {upload_command}")
+                        log_message("Steamコンソールでアップロードを開始しました。進行状況はコンソールで確認してください。")
+                    elif "NOTFOUND" in result.stdout:
+                        log_message("✗ エラー: SteamCMDコンソールウィンドウが見つかりませんでした。")
+                        show_error_dialog("SteamCMDコンソールウィンドウが見つかりません。ログを確認してください。")
+                    else:
+                        log_message(f"✗ PowerShell実行エラー")
+                        show_error_dialog(f"自動入力に失敗しました。ログを確認してください。")
+
+                except Exception as e:
+                    log_message(f"✗ 自動入力エラー: {e}")
+                    import traceback
+                    log_message(traceback.format_exc())
+                    show_error_dialog(f"自動入力エラーが発生しました: {str(e)}")
                     
             else:  # Linux
                 # For Linux, also fallback to manual
