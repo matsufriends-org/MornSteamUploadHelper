@@ -735,55 +735,109 @@ def main(page: ft.Page):
         
         def monitor_process():
             try:
-                # Use select for non-blocking read
-                import select
-                import fcntl
-                import os as os_module
-                
-                # Make stdout non-blocking
-                fd = process.stdout.fileno()
-                fl = fcntl.fcntl(fd, fcntl.F_GETFL)
-                fcntl.fcntl(fd, fcntl.F_SETFL, fl | os_module.O_NONBLOCK)
-                
-                timeout_counter = 0
-                while timeout_counter < 60:  # 60 second timeout
-                    # Check if there's data to read
-                    ready, _, _ = select.select([process.stdout], [], [], 1.0)
+                # Platform-specific non-blocking read
+                if platform.system() != "Windows":
+                    # Use select for non-blocking read on Unix-like systems
+                    import select
+                    import fcntl
+                    import os as os_module
                     
-                    if ready:
-                        try:
-                            line = process.stdout.readline()
-                            if line:
-                                line = line.strip()
+                    # Make stdout non-blocking
+                    fd = process.stdout.fileno()
+                    fl = fcntl.fcntl(fd, fcntl.F_GETFL)
+                    fcntl.fcntl(fd, fcntl.F_SETFL, fl | os_module.O_NONBLOCK)
+                    
+                    timeout_counter = 0
+                    while timeout_counter < 60:  # 60 second timeout
+                        # Check if there's data to read
+                        ready, _, _ = select.select([process.stdout], [], [], 1.0)
+                        
+                        if ready:
+                            try:
+                                line = process.stdout.readline()
                                 if line:
-                                    log_message(line)
-                                    
-                                if "Logged in OK" in line or "Logged in successfully" in line or "Logged in as" in line:
-                                    helper.is_logged_in = True
-                                    login_status.value = f"{username_field.value} としてログイン中"
-                                    login_status.color = ft.Colors.GREEN
-                                    enable_controls(True)
-                                    
-                                    # Save username
-                                    helper.settings["username"] = username_field.value
-                                    helper.save_settings()
-                                    
-                                    log_message("2FA認証後、ログインに成功しました！")
-                                    page.update()
-                                    break
-                                elif "FAILED" in line or "Login Failure" in line:
-                                    log_message("2FA verification failed")
-                                    page.sync()
-                                    show_error_dialog("2FA verification failed. Please try again.")
-                                    break
-                        except:
+                                    line = line.strip()
+                                    if line:
+                                        log_message(line)
+                                    if "Logged in OK" in line or "Logged in successfully" in line or "Logged in as" in line:
+                                        helper.is_logged_in = True
+                                        login_status.value = f"{username_field.value} としてログイン中"
+                                        login_status.color = ft.Colors.GREEN
+                                        enable_controls(True)
+                                        
+                                        # Save username
+                                        helper.settings["username"] = username_field.value
+                                        helper.save_settings()
+                                        
+                                        log_message("2FA認証後、ログインに成功しました！")
+                                        page.update()
+                                        break
+                                    elif "FAILED" in line or "Login Failure" in line:
+                                        log_message("2FA verification failed")
+                                        page.sync()
+                                        show_error_dialog("2FA verification failed. Please try again.")
+                                        break
+                            except Exception:
+                                pass
+                            timeout_counter = 0  # Reset timeout when we get data
+                        else:
+                            timeout_counter += 1
+                            
+                        # Check process status
+                        if process.poll() is not None:
+                            break
+                else:
+                    # Windows: Use threading and queue for non-blocking read
+                    import queue
+                    import threading
+                    
+                    output_queue = queue.Queue()
+                    
+                    def read_output(proc, q):
+                        try:
+                            for line in iter(proc.stdout.readline, ''):
+                                if line:
+                                    q.put(line.strip())
+                        except Exception:
                             pass
                     
-                    # Check if process is still alive
-                    if process.poll() is not None:
-                        break
-                        
-                    timeout_counter += 1
+                    reader_thread = threading.Thread(target=read_output, args=(process, output_queue))
+                    reader_thread.daemon = True
+                    reader_thread.start()
+                    
+                    timeout_counter = 0
+                    while timeout_counter < 60:  # 60 second timeout
+                        try:
+                            line = output_queue.get(timeout=1.0)
+                            if line:
+                                log_message(line)
+                                    
+                            timeout_counter = 0  # Reset timeout when we get data
+                                    
+                            if "Logged in OK" in line or "Logged in successfully" in line or "Logged in as" in line:
+                                helper.is_logged_in = True
+                                login_status.value = f"{username_field.value} としてログイン中"
+                                login_status.color = ft.Colors.GREEN
+                                enable_controls(True)
+                                
+                                # Save username
+                                helper.settings["username"] = username_field.value
+                                helper.save_settings()
+                                
+                                log_message("2FA認証後、ログインに成功しました！")
+                                page.update()
+                                break
+                            elif "FAILED" in line or "Login Failure" in line:
+                                log_message("2FA verification failed")
+                                page.sync()
+                                show_error_dialog("2FA verification failed. Please try again.")
+                                break
+                        except queue.Empty:
+                            timeout_counter += 1
+                    
+                        # Check if process is still alive
+                        if process.poll() is not None:
+                            break
                 
                 if timeout_counter >= 60:
                     log_message("2FA timeout")
