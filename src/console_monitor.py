@@ -20,7 +20,7 @@ def start_console_monitor(helper, login_status, login_button, enable_controls_fu
         log_message("コンソール監視を開始しました...")
         monitor_count = 0
         
-        while helper.is_logged_in and helper.steamcmd_terminal:
+        while helper.steamcmd_terminal:
             monitor_count += 1
             console_closed = False
             
@@ -102,14 +102,15 @@ def start_console_monitor(helper, login_status, login_button, enable_controls_fu
                 if console_closed:
                     log_message("コンソールが閉じられました！ログイン状態をリセットしています...")
                     
+                    # Disable upload controls only if user was logged in
+                    if helper.is_logged_in:
+                        enable_controls_func(False)
+                    
                     # Reset login state
                     helper.is_logged_in = False
                     helper.steamcmd_terminal = False
                     login_status.value = "未ログイン"
                     login_status.color = "red"
-                    
-                    # Disable upload controls
-                    enable_controls_func(False)
                     
                     # Re-enable login button
                     login_button.disabled = False
@@ -124,7 +125,7 @@ def start_console_monitor(helper, login_status, login_button, enable_controls_fu
             
         log_message("コンソール監視を停止しました。")
         helper.console_monitor_thread = None
-        log_message(f"監視終了理由: is_logged_in={helper.is_logged_in}, steamcmd_terminal={helper.steamcmd_terminal}")
+        log_message(f"監視終了理由: steamcmd_terminal={helper.steamcmd_terminal}")
     
     # Start monitoring thread
     helper.console_monitor_thread = threading.Thread(target=monitor_console, daemon=True)
