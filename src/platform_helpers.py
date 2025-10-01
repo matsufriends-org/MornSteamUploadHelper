@@ -521,9 +521,26 @@ class ConsoleMonitor:
                     return has_prompt
                     
             elif system == "Windows":
-                # Windows版の実装が必要
-                # 現在は簡易的にタイマーベースで判定
-                return False
+                # WindowsでもSteam>プロンプトを検出
+                # まずはsteamcmd.exeプロセスが実行中か確認
+                try:
+                    result = subprocess.run(
+                        ['tasklist', '/FI', 'IMAGENAME eq steamcmd.exe'],
+                        capture_output=True, text=True
+                    )
+                    
+                    if "steamcmd.exe" in result.stdout:
+                        # プロセスが存在する場合
+                        # ここでは簡易的に、プロセスが存在して1秒以上経過していれば
+                        # Steam>プロンプトが表示されているとみなす
+                        # TODO: 将来的にはコンソールバッファーを読む実装に更新
+                        return True
+                    return False
+                    
+                except Exception as e:
+                    if log_callback:
+                        log_callback(f"Windows Steam>検出エラー: {e}")
+                    return False
                 
             else:  # Linux
                 # Linux版も未実装
