@@ -55,14 +55,14 @@ def main(page: ft.Page):
         width=300,
         autofocus=True
     )
-    
+
     password_field = ft.TextField(
         label="パスワード *",
         password=True,
         can_reveal_password=True,
         width=200
     )
-    
+
     steam_guard_field = ft.TextField(
         label="Steam Guard コード (任意)",
         width=250
@@ -882,133 +882,6 @@ def main(page: ft.Page):
         except Exception as e:
             log_message(f"警告: 一時スクリプトファイルの削除エラー: {e}")
     
-    def start_console_monitor():
-        """Start monitoring the console to detect if it's closed"""
-        if helper.console_monitor_thread and helper.console_monitor_thread.is_alive():
-            return  # Already monitoring
-
-        def monitor_console():
-            log_message("コンソール監視を開始しました...")
-            monitor_count = 0
-            grace_period_checks = 2  # First 4 seconds (2 * 2s) grace period for process startup
-
-            while helper.steamcmd_terminal:
-                monitor_count += 1
-                if monitor_count % 10 == 0:  # Log every 20 seconds
-                    log_message(f"コンソール監視中... (チェック #{monitor_count})")
-                # Check if console is still open based on platform
-                console_closed = False
-                
-                if platform.system() == "Darwin":  # macOS
-                    # Check if Terminal has any windows with steamcmd
-                    try:
-                        result = subprocess.run(
-                            ['osascript', '-e', 'tell application "Terminal" to count windows'],
-                            capture_output=True, text=True
-                        )
-                        if result.returncode != 0 or result.stdout.strip() == "0":
-                            console_closed = True
-                        else:
-                            # Check if any window contains steamcmd
-                            check_script = '''
-                            tell application "Terminal"
-                                set steamcmdFound to false
-                                set windowCount to count windows
-                                repeat with w in windows
-                                    try
-                                        repeat with t in tabs of w
-                                            if processes of t contains "steamcmd" or name of t contains "steamcmd" then
-                                                set steamcmdFound to true
-                                                exit repeat
-                                            end if
-                                        end repeat
-                                    end try
-                                end repeat
-                                return steamcmdFound
-                            end tell
-                            '''
-                            result = subprocess.run(
-                                ['osascript', '-e', check_script],
-                                capture_output=True, text=True
-                            )
-                            
-                            # Also check using ps command as backup
-                            ps_result = subprocess.run(
-                                ['ps', 'aux'],
-                                capture_output=True, text=True
-                            )
-                            has_steamcmd_process = 'steamcmd' in ps_result.stdout.lower()
-                            
-                            if result.stdout.strip() != "true" and not has_steamcmd_process:
-                                console_closed = True
-                                log_message(f"macOS: SteamCMDコンソールが見つかりません (AppleScript: {result.stdout.strip()}, ps: {has_steamcmd_process})")
-                            else:
-                                if monitor_count % 10 == 0:
-                                    log_message(f"macOS: SteamCMDコンソール検出 (AppleScript: {result.stdout.strip()}, ps: {has_steamcmd_process})")
-                    except Exception as e:
-                        log_message(f"macOS コンソールチェックエラー: {e}")
-                        
-                elif platform.system() == "Windows":
-                    # Check if cmd window with steamcmd is still open
-                    try:
-                        # Check for steamcmd.exe process
-                        result = subprocess.run(
-                            ['tasklist', '/FI', 'IMAGENAME eq steamcmd.exe'],
-                            capture_output=True, text=True
-                        )
-                        
-                        # Also check for cmd windows with our script
-                        cmd_result = subprocess.run(
-                            ['tasklist', '/V', '/FI', 'IMAGENAME eq cmd.exe'],
-                            capture_output=True, text=True
-                        )
-                        
-                        has_steamcmd = "steamcmd.exe" in result.stdout
-                        has_cmd_with_steam = "SteamCMD" in cmd_result.stdout or "steamcmd_session" in cmd_result.stdout
-
-                        # Apply grace period - don't close console during initial startup
-                        if not has_steamcmd and not has_cmd_with_steam:
-                            if monitor_count > grace_period_checks:
-                                console_closed = True
-                                log_message(f"Windows: SteamCMDコンソールが見つかりません (steamcmd.exe: {has_steamcmd}, cmd: {has_cmd_with_steam})")
-                            else:
-                                log_message(f"Windows: 起動待機中... ({monitor_count}/{grace_period_checks}) (steamcmd.exe: {has_steamcmd}, cmd: {has_cmd_with_steam})")
-                        else:
-                            if monitor_count % 10 == 0:
-                                log_message(f"Windows: SteamCMDコンソール検出 (steamcmd.exe: {has_steamcmd}, cmd: {has_cmd_with_steam})")
-                    except Exception as e:
-                        log_message(f"Windows コンソールチェックエラー: {e}")
-                
-                if console_closed:
-                    log_message("コンソールが閉じられました！ログイン状態をリセットしています...")
-                    
-                    # Reset login state
-                    helper.is_logged_in = False
-                    helper.steamcmd_terminal = False
-                    login_status.value = "未ログイン"
-                    login_status.color = ft.Colors.RED
-                    
-                    # Disable upload controls
-                    enable_controls(False)
-                    
-                    # Re-enable login button
-                    login_button.disabled = False
-                    progress_bar.visible = False
-                    
-                    page.update()
-                    break
-                
-                # Check every 2 seconds
-                time.sleep(2)
-            
-            log_message("コンソール監視を停止しました。")
-            helper.console_monitor_thread = None
-            log_message(f"監視終了理由: is_logged_in={helper.is_logged_in}, steamcmd_terminal={helper.steamcmd_terminal}")
-        
-        # Start monitoring thread
-        helper.console_monitor_thread = threading.Thread(target=monitor_console, daemon=True)
-        helper.console_monitor_thread.start()
-        log_message(f"コンソール監視スレッドを開始しました (thread alive: {helper.console_monitor_thread.is_alive()})")
     
     def login_to_steam_console(e):
         # Prevent multiple console openings
@@ -1360,11 +1233,11 @@ pause
                 # Start a thread to monitor for successful login
                 def monitor_login_status():
                     import time
-                    time.sleep(3)  # Wait a bit for login to start
+                    time.sleep(2)  # Wait a bit for login to start
 
-                    # Keep checking until login succeeds or fails (max 60 seconds)
+                    # Keep checking until login succeeds or fails (max 30 seconds)
                     check_count = 0
-                    max_checks = 30  # 30 * 2 seconds = 60 seconds max
+                    max_checks = 60  # 60 * 0.5 seconds = 30 seconds max
 
                     while helper.steamcmd_terminal and not helper.is_logged_in and check_count < max_checks:
                         try:
@@ -1389,25 +1262,99 @@ pause
                                 page.update()
                                 break
 
-                            # Debug logging
-                            if check_count % 5 == 0:  # Log every 10 seconds
-                                log_message(f"ログインチェック #{check_count}: steamcmd.exe実行中")
+                            # Check for login success by looking at SteamCMD logs
+                            # Find stderr.txt based on steamcmd.exe path
+                            try:
+                                steamcmd_path = helper.settings.get("steamcmd_path", "")
+                                if steamcmd_path:
+                                    steamcmd_dir = os.path.dirname(os.path.abspath(steamcmd_path))
+
+                                    # Check common log locations
+                                    possible_logs = [
+                                        os.path.join(steamcmd_dir, "logs", "console_log.txt"),  # Primary log file
+                                        os.path.join(steamcmd_dir, "logs", "stderr.txt"),
+                                        os.path.join(steamcmd_dir, "logs", "stdout.txt"),
+                                        os.path.join(steamcmd_dir, "logs", "content_log.txt"),
+                                        # Also check parent directories (ContentBuilder structure)
+                                        os.path.join(steamcmd_dir, "..", "logs", "console_log.txt"),
+                                        os.path.join(steamcmd_dir, "..", "logs", "stderr.txt"),
+                                        os.path.join(steamcmd_dir, "builder", "logs", "console_log.txt"),
+                                    ]
+
+                                    # Debug: log which paths we're checking (only once at check_count == 1)
+                                    if check_count == 1:
+                                        log_message(f"ログイン監視: SteamCMDパス = {steamcmd_path}")
+                                        log_message(f"ログイン監視: 以下のログファイルをチェックします:")
+                                        for p in possible_logs:
+                                            abs_p = os.path.abspath(p)
+                                            exists = "✓存在" if os.path.exists(abs_p) else "✗なし"
+                                            log_message(f"  [{exists}] {abs_p}")
+
+                                    for log_path in possible_logs:
+                                        log_path = os.path.abspath(log_path)
+                                        if os.path.exists(log_path):
+                                            try:
+                                                # Read last 100 lines
+                                                with open(log_path, 'r', encoding='utf-8', errors='ignore') as f:
+                                                    lines = f.readlines()
+                                                    last_lines = ''.join(lines[-100:])
+
+                                                    # Check for login success indicators (multiple patterns)
+                                                    login_success = (
+                                                        "Waiting for user info...OK" in last_lines or
+                                                        "Logged in OK" in last_lines or
+                                                        ("Logging in user" in last_lines and "OK" in last_lines and "Steam>" in last_lines)
+                                                    )
+
+                                                    if login_success:
+                                                        log_message(f"ログイン成功を検出しました！(from {os.path.basename(log_path)})")
+                                                        helper.is_logged_in = True
+                                                        login_status.value = f"{username_field.value} としてログイン中"
+                                                        login_status.color = ft.Colors.GREEN
+                                                        enable_controls(True)
+                                                        confirm_login_button.visible = False
+                                                        helper.settings["username"] = username_field.value
+                                                        helper.save_settings()
+                                                        cleanup_temp_scripts()
+                                                        password_field.value = ""
+                                                        steam_guard_field.value = ""
+                                                        page.update()
+                                                        return
+
+                                                    # Check for login failures
+                                                    if "FAILED login" in last_lines or "Invalid Password" in last_lines or "Rate Limit Exceeded" in last_lines:
+                                                        log_message(f"ログイン失敗を検出しました (from {os.path.basename(log_path)})")
+                                                        helper.is_logged_in = False
+                                                        helper.steamcmd_terminal = False
+                                                        login_status.value = "ログイン失敗"
+                                                        login_status.color = ft.Colors.RED
+                                                        login_button.disabled = False
+                                                        enable_controls(False)
+                                                        confirm_login_button.visible = False
+                                                        page.update()
+                                                        return
+                                            except:
+                                                continue
+                            except Exception as log_error:
+                                # Log file check failed, continue with process check
+                                pass
 
                         except Exception as e:
                             log_message(f"ログイン監視エラー: {e}")
-                            pass
 
-                        time.sleep(2)  # Check every 2 seconds
+                        time.sleep(0.5)  # Check every 0.5 seconds (faster!)
                         check_count += 1
-                        page.update()
+
+                        # Log progress every 10 checks (every 5 seconds)
+                        if check_count % 10 == 0:
+                            log_message(f"ログイン監視中... ({check_count * 0.5:.0f}秒経過)")
 
                     if check_count >= max_checks and not helper.is_logged_in:
-                        log_message("ログイン監視がタイムアウトしました。手動でログインを確認する必要があるかもしれません。")
-                        login_status.value = "ログインタイムアウト - コンソールを確認してください"
+                        # Timeout - show manual confirmation button
+                        log_message("ログイン自動検出がタイムアウトしました。ログインが完了したら「ログイン確認」ボタンを押してください。")
+                        login_status.value = "ログイン待機中 - 完了後に確認ボタンを押してください"
                         login_status.color = ft.Colors.ORANGE
                         confirm_login_button.visible = True
-                        # Start console monitor even during login check
-                        start_console_monitor()
 
                     page.update()
 
@@ -1465,63 +1412,117 @@ echo ""
                 enable_controls(False)
                 
                 login_button.disabled = True
-                
-                # For Linux, we need manual confirmation of login
-                # Don't start console monitoring until confirmed
-                
+
+                # Start console monitoring thread
+                start_console_monitor()
+
                 # Start a thread to monitor for successful login
                 def monitor_login_status():
                     import time
                     time.sleep(3)  # Wait a bit for login to start
-                    
-                    # Check for rate limit error
-                    rate_limit_detected = False
-                    for i in range(10):  # Check for 10 seconds
+
+                    # Keep checking until login succeeds or fails (max 60 seconds)
+                    check_count = 0
+                    max_checks = 30  # 30 * 2 seconds = 60 seconds max
+
+                    while helper.steamcmd_terminal and not helper.is_logged_in and check_count < max_checks:
                         try:
-                            # Check if Terminal window contains rate limit error
-                            check_script = '''
-                            tell application "Terminal"
-                                set rateLimit to false
-                                try
-                                    repeat with w in windows
-                                        if (contents of selected tab of w) contains "Rate Limit Exceeded" then
-                                            set rateLimit to true
-                                            exit repeat
-                                        end if
-                                    end repeat
-                                end try
-                                return rateLimit
-                            end tell
-                            '''
-                            result = subprocess.run(
-                                ['osascript', '-e', check_script],
-                                capture_output=True, text=True
-                            )
-                            if result.stdout.strip() == "true":
-                                rate_limit_detected = True
-                                break
-                        except:
-                            pass
-                        time.sleep(1)
-                    
-                    if rate_limit_detected:
-                        # Handle rate limit error
-                        helper.is_logged_in = False
-                        helper.steamcmd_terminal = False
-                        login_status.value = "ログイン失敗 - レート制限"
-                        login_status.color = ft.Colors.RED
-                        login_button.disabled = False
-                        log_message("Login failed due to rate limit. Please wait 5-10 minutes.")
-                        show_error_dialog("Rate limit exceeded! Please wait 5-10 minutes before trying again.")
-                    elif helper.steamcmd_terminal:
-                        # Don't assume success - keep monitoring
-                        # User needs to actually complete login
-                        pass
-                    
+                            # Check if Terminal/console is still open and monitor login status
+                            if platform.system() == "Darwin":  # macOS
+                                # First check if Terminal app has windows
+                                window_check = subprocess.run(
+                                    ['osascript', '-e', 'tell application "Terminal" to count windows'],
+                                    capture_output=True, text=True
+                                )
+
+                                if window_check.returncode != 0 or window_check.stdout.strip() == "0":
+                                    # Terminal closed
+                                    log_message("コンソールが閉じられました！")
+                                    helper.is_logged_in = False
+                                    helper.steamcmd_terminal = False
+                                    login_status.value = "未ログイン"
+                                    login_status.color = ft.Colors.RED
+                                    login_button.disabled = False
+                                    enable_controls(False)
+                                    confirm_login_button.visible = False
+                                    page.update()
+                                    break
+
+                                # Check Terminal window content for login status
+                                check_script = '''
+                                tell application "Terminal"
+                                    set loginStatus to "unknown"
+                                    try
+                                        repeat with w in windows
+                                            try
+                                                set tabContent to contents of selected tab of w
+                                                if tabContent contains "steamcmd" or tabContent contains "Steam>" then
+                                                    if tabContent contains "Waiting for user info...OK" then
+                                                        set loginStatus to "logged_in"
+                                                        exit repeat
+                                                    else if tabContent contains "FAILED" and tabContent contains "Login Failure" then
+                                                        set loginStatus to "failed"
+                                                        exit repeat
+                                                    else if tabContent contains "Rate Limit Exceeded" then
+                                                        set loginStatus to "rate_limited"
+                                                        exit repeat
+                                                    end if
+                                                end if
+                                            end try
+                                        end repeat
+                                    end try
+                                    return loginStatus
+                                end tell
+                                '''
+                                result = subprocess.run(
+                                    ['osascript', '-e', check_script],
+                                    capture_output=True, text=True
+                                )
+
+                                status = result.stdout.strip()
+                                if status == "logged_in":
+                                    log_message("ログイン成功を検出しました！")
+                                    helper.is_logged_in = True
+                                    login_status.value = f"{username_field.value} としてログイン中"
+                                    login_status.color = ft.Colors.GREEN
+                                    enable_controls(True)
+                                    confirm_login_button.visible = False
+                                    helper.settings["username"] = username_field.value
+                                    helper.save_settings()
+                                    cleanup_temp_scripts()
+                                    password_field.value = ""
+                                    steam_guard_field.value = ""
+                                    page.update()
+                                    break
+                                elif status == "failed" or status == "rate_limited":
+                                    log_message(f"ログイン失敗を検出しました: {status}")
+                                    helper.is_logged_in = False
+                                    helper.steamcmd_terminal = False
+                                    login_status.value = "ログイン失敗"
+                                    login_status.color = ft.Colors.RED
+                                    login_button.disabled = False
+                                    enable_controls(False)
+                                    confirm_login_button.visible = False
+                                    page.update()
+                                    break
+
+                        except Exception as e:
+                            log_message(f"ログイン監視エラー: {e}")
+
+                        time.sleep(2)  # Check every 2 seconds
+                        check_count += 1
+
+                    if check_count >= max_checks and not helper.is_logged_in:
+                        # Timeout - show manual confirmation button
+                        log_message("ログイン監視がタイムアウトしました。ログインが完了したら「ログイン確認」ボタンを押してください。")
+                        login_status.value = "ログイン待機中 - 完了後に確認ボタンを押してください"
+                        login_status.color = ft.Colors.ORANGE
+                        confirm_login_button.visible = True
+
                     page.update()
-                
+
                 threading.Thread(target=monitor_login_status, daemon=True).start()
-                
+
                 page.update()
                 return
         
@@ -1755,7 +1756,7 @@ echo ""
             
             depot_filename = f"depot_{depot_id_field.value}.vdf"
             depot_path = helper.vdf_dir / depot_filename
-            with open(depot_path, 'w') as f:
+            with open(depot_path, 'w', encoding='utf-8') as f:
                 f.write(depot_content)
             
             log_message(f"depot設定を作成しました: {depot_path}")
@@ -1811,7 +1812,7 @@ echo ""
             
             # Save VDF config in vdf directory
             config_path = helper.vdf_dir / f"app_{app_id_field.value}.vdf"
-            with open(config_path, 'w') as f:
+            with open(config_path, 'w', encoding='utf-8') as f:
                 f.write(vdf_content)
             
             log_message(f"ビルド設定を作成しました: {config_path}")
@@ -1894,12 +1895,13 @@ return "OK"
                     log_message(f"デバッグ: アップロードコマンド = {upload_command}")
                     log_message("WriteConsoleInputを使用してコンソールに直接入力します（フォーカス不要）...")
 
-                    log_message("コマンドを送信します（短時間フォーカス方式）...")
+                    log_message("コマンドを送信します（クリップボード経由）...")
 
+                    # For commands with Japanese characters, use clipboard + paste
                     # Escape command for PowerShell
                     escaped_command = upload_command.replace('"', '`"').replace("'", "''")
 
-                    # Use same method as test button - SendKeys with brief focus
+                    # Use clipboard to send command (supports Japanese)
                     ps_script = f'''
 Add-Type -AssemblyName System.Windows.Forms
 
@@ -1929,6 +1931,18 @@ Add-Type @"
 
         [DllImport("user32.dll")]
         public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+
+        [DllImport("imm32.dll")]
+        public static extern IntPtr ImmGetContext(IntPtr hWnd);
+
+        [DllImport("imm32.dll")]
+        public static extern bool ImmReleaseContext(IntPtr hWnd, IntPtr hIMC);
+
+        [DllImport("imm32.dll")]
+        public static extern bool ImmGetOpenStatus(IntPtr hIMC);
+
+        [DllImport("imm32.dll")]
+        public static extern bool ImmSetOpenStatus(IntPtr hIMC, bool fOpen);
 
         public delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
 
@@ -1998,8 +2012,23 @@ $originalWindow = [InputHelper]::GetForegroundWindow()
 Start-Sleep -Milliseconds 80
 
 try {{
-    # Send command + enter in one shot (fastest)
-    [System.Windows.Forms.SendKeys]::SendWait("{escaped_command}{{ENTER}}")
+    # Copy command to clipboard
+    Set-Clipboard -Value "{escaped_command}"
+
+    # Force disable IME using Windows API
+    $hIMC = [InputHelper]::ImmGetContext($targetWindow.Handle)
+    if ($hIMC -ne [IntPtr]::Zero) {{
+        $imeStatus = [InputHelper]::ImmGetOpenStatus($hIMC)
+        if ($imeStatus) {{
+            # IME is ON, turn it OFF
+            [InputHelper]::ImmSetOpenStatus($hIMC, $false) | Out-Null
+        }}
+        [InputHelper]::ImmReleaseContext($targetWindow.Handle, $hIMC) | Out-Null
+    }}
+    Start-Sleep -Milliseconds 50
+
+    # Paste from clipboard (supports Japanese) + enter
+    [System.Windows.Forms.SendKeys]::SendWait("^v{{ENTER}}")
     Write-Output "SUCCESS"
 }} catch {{
     Write-Output "ERROR: $_"

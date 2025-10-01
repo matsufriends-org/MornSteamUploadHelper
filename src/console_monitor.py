@@ -19,7 +19,7 @@ def start_console_monitor(helper, login_status, login_button, enable_controls_fu
         """Monitor the console window status."""
         log_message("コンソール監視を開始しました...")
         monitor_count = 0
-        grace_period_checks = 2  # First 4 seconds (2 * 2s) grace period for process startup
+        grace_period_checks = 2  # First ~2.5 seconds grace period for process startup
 
         while helper.steamcmd_terminal:
             monitor_count += 1
@@ -74,33 +74,26 @@ def start_console_monitor(helper, login_status, login_button, enable_controls_fu
                                 log_message(f"macOS: SteamCMDコンソール検出 (AppleScript: {result.stdout.strip()}, ps: {has_steamcmd_process})")
                     
                 elif platform.system() == "Windows":
-                    # Check if cmd window with steamcmd is still open
+                    # Check if steamcmd.exe process is still running
                     try:
-                        # Check for steamcmd.exe process
+                        # Check for steamcmd.exe process (fast check only)
                         result = subprocess.run(
                             ['tasklist', '/FI', 'IMAGENAME eq steamcmd.exe'],
                             capture_output=True, text=True
                         )
-                        
-                        # Also check for cmd windows with our script
-                        cmd_result = subprocess.run(
-                            ['tasklist', '/V', '/FI', 'IMAGENAME eq cmd.exe'],
-                            capture_output=True, text=True
-                        )
-                        
+
                         has_steamcmd = "steamcmd.exe" in result.stdout
-                        has_cmd_with_steam = "SteamCMD" in cmd_result.stdout or "steamcmd_session" in cmd_result.stdout
 
                         # Apply grace period - don't close console during initial startup
-                        if not has_steamcmd and not has_cmd_with_steam:
+                        if not has_steamcmd:
                             if monitor_count > grace_period_checks:
                                 console_closed = True
-                                log_message(f"Windows: SteamCMDコンソールが見つかりません (steamcmd.exe: {has_steamcmd}, cmd: {has_cmd_with_steam})")
+                                log_message(f"Windows: SteamCMDコンソールが見つかりません")
                             else:
-                                log_message(f"Windows: 起動待機中... ({monitor_count}/{grace_period_checks}) (steamcmd.exe: {has_steamcmd}, cmd: {has_cmd_with_steam})")
+                                log_message(f"Windows: 起動待機中... ({monitor_count}/{grace_period_checks})")
                         else:
                             if monitor_count % 10 == 0:
-                                log_message(f"Windows: SteamCMDコンソール検出 (steamcmd.exe: {has_steamcmd}, cmd: {has_cmd_with_steam})")
+                                log_message(f"Windows: SteamCMDコンソール検出")
                     except Exception as e:
                         log_message(f"Windows コンソールチェックエラー: {e}")
                 
@@ -123,8 +116,8 @@ def start_console_monitor(helper, login_status, login_button, enable_controls_fu
                     page.update()
                     break
                 
-                # Check every 2 seconds
-                time.sleep(2)
+                # Check every 0.5 seconds (faster!)
+                time.sleep(0.5)
             except Exception as e:
                 log_message(f"コンソール監視エラー: {e}")
             
