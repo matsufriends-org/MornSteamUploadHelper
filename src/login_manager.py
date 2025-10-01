@@ -226,33 +226,19 @@ class LoginManager:
     def _handle_login_failure(self):
         """ログイン失敗時の処理"""
         self._log_message("ログイン失敗を検出しました")
-        
+
         # ログイン待機ダイアログを閉じる
         if hasattr(self, '_login_waiting_dialog') and self._login_waiting_dialog:
             DialogBuilder._close_dialog(self.page, self._login_waiting_dialog)
             self._login_waiting_dialog = None
-        
-        # Check if it's a 2FA error by looking at recent logs
-        is_2fa_error = False
-        try:
-            # Simple check - if Steam Guard field was empty, it might be 2FA issue
-            if not self.steam_guard_field.value:
-                is_2fa_error = True
-        except:
-            pass
-        
+
         self.helper.is_logged_in = False
         self.helper.steamcmd_terminal = False
         self.login_button.disabled = False
-        
-        if is_2fa_error:
-            self.login_status.value = "ログイン失敗 - Steam Guardコードを確認してください"
-            self.login_status.color = ft.Colors.ORANGE
-            # Show 2FA dialog
-            self.show_2fa_dialog()
-        else:
-            self.login_status.value = "ログイン失敗"
-            self.login_status.color = ft.Colors.RED
+
+        # シンプルなエラー表示のみ（ポップアップは表示しない）
+        self.login_status.value = "ログイン失敗 - 詳細はコンソールを確認してください"
+        self.login_status.color = ft.Colors.RED
         
         if self.enable_controls_callback:
             self.enable_controls_callback(False)

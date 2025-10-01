@@ -89,6 +89,7 @@ cd "{os.path.dirname(abs_steamcmd_path)}"
         
         # バッチファイル作成
         script_content = f'''@echo off
+title MornSteamCMD - Upload Console
 echo MornSteamCMD - このウィンドウを閉じないでください
 echo このコンソールはアップロードに使用されます
 echo.
@@ -193,18 +194,21 @@ class LoginMonitor:
     def _get_log_files(steamcmd_path: str) -> list:
         """ログファイルのパスリストを取得"""
         steamcmd_dir = os.path.dirname(os.path.abspath(steamcmd_path))
-        
+
         return [
             os.path.join(steamcmd_dir, "logs", "console_log.txt"),
+            os.path.join(steamcmd_dir, "logs", "connection_log.txt"),  # モバイル2FA検出用
             os.path.join(steamcmd_dir, "logs", "stderr.txt"),
             os.path.join(steamcmd_dir, "logs", "stdout.txt"),
             os.path.join(steamcmd_dir, "..", "logs", "console_log.txt"),
+            os.path.join(steamcmd_dir, "..", "logs", "connection_log.txt"),  # モバイル2FA検出用
             os.path.join(steamcmd_dir, "..", "logs", "stderr.txt"),
             os.path.join(steamcmd_dir, "builder", "logs", "console_log.txt"),
+            os.path.join(steamcmd_dir, "builder", "logs", "connection_log.txt"),  # モバイル2FA検出用
         ]
     
     @staticmethod
-    def _check_log_content(log_files: list, start_positions: dict) -> str:
+    def _check_log_content(log_files: list, start_positions: dict, debug_log=None) -> str:
         """ログファイルの新しい内容をチェック"""
         for log_path in log_files:
             log_path = os.path.abspath(log_path)
@@ -214,20 +218,78 @@ class LoginMonitor:
                         start_pos = start_positions.get(log_path, 0)
                         f.seek(start_pos)
                         new_content = f.read()
-                        
+
+                        # 読み取り位置を更新
+                        start_positions[log_path] = f.tell()
+
+                        if not new_content:
+                            if debug_log:
+                                filename = os.path.basename(log_path)
+                                debug_log(f"[ログ読取] {filename}: 新しい内容なし")
+                            continue
+
+                        # デバッグ: 新しい内容があった場合に一部を表示
+                        if debug_log and new_content.strip():
+                            filename = os.path.basename(log_path)
+                            content_preview = new_content[:100].replace('\n', ' ')
+                            debug_log(f"[ログ読取] {filename}: {len(new_content)}文字 - {content_preview}...")
+
+                        # 重要なキーワードが含まれているかチェック（常に実行）
+                        if new_content.strip():
+                            keywords = []
+                            if "mobile authenticator" in new_content.lower():
+                                keywords.append("mobile_auth")
+                            if "Waiting for user info..." in new_content:
+                                keywords.append("user_info")
+                            if "Waiting for confirmation" in new_content:
+                                keywords.append("waiting_confirm")
+                            if "Steam Guard" in new_content:
+                                keywords.append("steam_guard")
+                            if keywords and debug_log:
+                                filename = os.path.basename(log_path)
+                                debug_log(f"[キーワード検出] {filename}: {', '.join(keywords)}")
+
                         # ログイン成功チェック（モバイル認証後も含む）
-                        if any(phrase in new_content for phrase in [
-                            "Waiting for user info...OK",
-                            "Logged in OK",
-                            ("Logging in user" in new_content and "OK" in new_content and "Steam>" in new_content)
-                        ]):
+                        # "Waiting for user info..." と "OK" が両方含まれている（改行を考慮）
+                        if "Waiting for user info..." in new_content and "OK" in new_content:
+                            # さらに確実にするため、Waiting for user info...の後にOKがあるか確認
+                            user_info_pos = new_content.find("Waiting for user info...")
+                            ok_pos = new_content.find("OK", user_info_pos)
+                            if ok_pos > user_info_pos:
+                                if debug_log:
+                                    debug_log(f"[検出] ログイン成功: 'Waiting for user info...' + 'OK'")
+                                return "success"
+
+                        # その他のログイン成功パターン
+                        if "Logged in OK" in new_content:
+                            if debug_log:
+                                debug_log(f"[検出] ログイン成功: 'Logged in OK'")
                             return "success"
-                        
+
+                        # Steam>プロンプトが表示されていて、ログイン処理が完了している
+                        if ("Logging in user" in new_content and
+                            "OK" in new_content and
+                            "Steam>" in new_content):
+                            if debug_log:
+                                debug_log(f"[検出] ログイン成功: Steam>プロンプト確認")
+                            return "success"
+
                         # モバイル2FA待機中チェック（成功チェックより後に配置）
-                        if ("This account is protected by a Steam Guard mobile authenticator" in new_content 
-                            and "Waiting for user info...OK" not in new_content):
+                        if "Waiting for confirmation" in new_content:
+                            if debug_log:
+                                debug_log(f"[検出] モバイル2FA待機中 (Waiting for confirmation)")
                             return "mobile_2fa_waiting"
-                        
+
+                        if "Steam Guard mobile authenticator" in new_content:
+                            # まだログイン完了していない場合のみ
+                            if "Waiting for user info..." not in new_content:
+                                if debug_log:
+                                    debug_log(f"[検出] モバイル2FA待機中 (mobile authenticator)")
+                                return "mobile_2fa_waiting"
+                            else:
+                                if debug_log:
+                                    debug_log(f"[スキップ] モバイル2FAメッセージがあるがログイン完了済み")
+
                         # ログイン失敗チェック
                         if any(phrase in new_content for phrase in [
                             "FAILED login",
@@ -236,10 +298,14 @@ class LoginMonitor:
                             "Two-factor code mismatch",
                             "ERROR (Two-factor code mismatch)"
                         ]):
+                            if debug_log:
+                                debug_log(f"[検出] ログイン失敗")
                             return "failed"
-                except:
+                except Exception as e:
+                    if debug_log:
+                        debug_log(f"[ログエラー] {log_path}: {e}")
                     continue
-        
+
         return "unknown"
     
     @staticmethod
@@ -247,15 +313,19 @@ class LoginMonitor:
         """Windows用のログイン監視"""
         log_files = LoginMonitor._get_log_files(steamcmd_path)
         
-        # 初期位置を記録
+        # 初期位置を記録（現在の末尾から開始）
         log_positions = {}
         for log_path in log_files:
             if os.path.exists(log_path):
                 try:
-                    log_positions[log_path] = os.path.getsize(log_path)
+                    file_size = os.path.getsize(log_path)
+                    # 末尾から読み始める（過去ログを読まないため）
+                    log_positions[log_path] = file_size
+                    if log_callback:
+                        log_callback(f"[ログイン監視] {os.path.basename(log_path)}: サイズ{file_size}, 開始位置{log_positions[log_path]}")
                 except:
                     pass
-        
+
         time.sleep(2)  # ログイン開始を待つ
         
         # フラグをリセット
@@ -266,37 +336,55 @@ class LoginMonitor:
         
         if log_callback:
             log_callback(f"[ログイン監視] 開始 (最大{timeout}秒間監視)")
-        
+            log_callback(f"[ログイン監視] 監視対象ログファイル: {len(log_files)}個")
+            for i, lf in enumerate(log_files[:3]):  # 最初の3つだけ表示
+                exists = "存在" if os.path.exists(lf) else "なし"
+                log_callback(f"  - {lf} ({exists})")
+
         while check_count < max_checks:
             # プロセスチェック
-            result = subprocess.run(
-                ['tasklist', '/FI', 'IMAGENAME eq steamcmd.exe'],
-                capture_output=True, text=True
-            )
-            
-            if "steamcmd.exe" not in result.stdout:
-                callbacks.get('on_process_ended', lambda: None)()
-                break
-            
-            # ログチェック
-            status = LoginMonitor._check_log_content(log_files, log_positions)
-            
+            try:
+                result = subprocess.run(
+                    ['tasklist', '/FI', 'IMAGENAME eq steamcmd.exe'],
+                    capture_output=True,
+                    encoding='cp932',
+                    errors='ignore'
+                )
+
+                if not result.stdout or "steamcmd.exe" not in result.stdout:
+                    callbacks.get('on_process_ended', lambda: None)()
+                    break
+            except Exception as e:
+                if log_callback:
+                    log_callback(f"プロセスチェックエラー: {e}")
+                # エラー時は継続
+
+            # ログチェック（最初の20回デバッグログを有効にする）
+            debug = log_callback if check_count < 20 else None
+            status = LoginMonitor._check_log_content(log_files, log_positions, debug_log=debug)
+
             if status == "success":
+                if log_callback:
+                    log_callback(f"[ログイン監視] ログイン成功を検出！")
                 callbacks.get('on_success', lambda: None)()
                 break
             elif status == "failed":
+                if log_callback:
+                    log_callback(f"[ログイン監視] ログイン失敗を検出")
                 callbacks.get('on_failure', lambda: None)()
                 break
             elif status == "mobile_2fa_waiting":
                 # 初回のみモバイル2FAコールバックを実行
                 if not getattr(LoginMonitor, '_mobile_2fa_shown', False):
                     LoginMonitor._mobile_2fa_shown = True
+                    if log_callback:
+                        log_callback(f"[ログイン監視] モバイル2FA待機中を検出")
                     callbacks.get('on_mobile_2fa', lambda: None)()
                 # モバイル2FA待機中は継続して監視
-            
+
             time.sleep(0.5)
             check_count += 1
-            
+
             # 1秒ごとに進捗をログ出力（0.5秒 × 2）
             if check_count % 2 == 0:
                 elapsed = check_count * 0.5
@@ -455,9 +543,11 @@ class PlatformUtilities:
             if system == "Windows":
                 result = subprocess.run(
                     ['tasklist', '/FI', f'IMAGENAME eq {process_name}'],
-                    capture_output=True, text=True
+                    capture_output=True,
+                    encoding='cp932',
+                    errors='ignore'
                 )
-                return process_name in result.stdout
+                return result.stdout and process_name in result.stdout
             else:  # macOS/Linux
                 result = subprocess.run(
                     ['ps', 'aux'],
@@ -472,7 +562,7 @@ class ConsoleMonitor:
     """プラットフォーム固有のコンソール監視処理"""
     
     @staticmethod
-    def check_steam_prompt(log_callback=None) -> bool:
+    def check_steam_prompt(steamcmd_path: str = None, log_callback=None) -> bool:
         """Steam>プロンプトが表示されているかチェック"""
         system = platform.system()
         
@@ -521,22 +611,68 @@ class ConsoleMonitor:
                     return has_prompt
                     
             elif system == "Windows":
-                # WindowsでもSteam>プロンプトを検出
-                # まずはsteamcmd.exeプロセスが実行中か確認
+                # WindowsでSteam>プロンプトを検出（ログファイルベース）
                 try:
+                    # まずsteamcmd.exeプロセスが実行中か確認
                     result = subprocess.run(
                         ['tasklist', '/FI', 'IMAGENAME eq steamcmd.exe'],
-                        capture_output=True, text=True
+                        capture_output=True,
+                        encoding='cp932',
+                        errors='ignore'
                     )
-                    
-                    if "steamcmd.exe" in result.stdout:
-                        # プロセスが存在する場合
-                        # ここでは簡易的に、プロセスが存在して1秒以上経過していれば
-                        # Steam>プロンプトが表示されているとみなす
-                        # TODO: 将来的にはコンソールバッファーを読む実装に更新
-                        return True
+
+                    if not result.stdout or "steamcmd.exe" not in result.stdout:
+                        return False
+
+                    # プロセスが存在する場合、ログファイルから最新の内容を確認
+                    # LoginMonitorと同じ方式でログファイルを取得
+                    log_files = LoginMonitor._get_log_files(steamcmd_path) if steamcmd_path else []
+
+                    # steamcmd_pathがない場合は標準的なパスも試す
+                    if not steamcmd_path:
+                        log_files.extend([
+                            str(Path.cwd() / "logs" / "console_log.txt"),
+                            str(Path.cwd().parent / "logs" / "console_log.txt"),
+                        ])
+
+                    found_log = False
+                    checked_paths = []
+                    for log_path in log_files:
+                        log_path = os.path.abspath(log_path)
+                        checked_paths.append(log_path)
+
+                        if os.path.exists(log_path):
+                            found_log = True
+                            try:
+                                # ファイルの最後の数行を読み取る
+                                with open(log_path, 'r', encoding='utf-8', errors='ignore') as f:
+                                    # 最後の500バイトを読む
+                                    f.seek(0, 2)  # ファイル末尾へ
+                                    file_size = f.tell()
+                                    read_size = min(500, file_size)
+                                    f.seek(max(0, file_size - read_size))
+                                    last_content = f.read()
+
+                                    # Steam>プロンプトが最後にあるかチェック
+                                    if "Steam>" in last_content:
+                                        # さらに最終行近くにSteam>があるか確認
+                                        lines = last_content.strip().split('\n')
+                                        for line in reversed(lines[-5:]):  # 最後の5行を確認
+                                            if "Steam>" in line:
+                                                if log_callback:
+                                                    log_callback(f"Steam>プロンプトを検出 (ログ: {log_path})")
+                                                return True
+                            except Exception as e:
+                                if log_callback:
+                                    log_callback(f"ログ読み取りエラー ({log_path}): {e}")
+                                continue
+
+                    # デバッグ: ログファイルが見つからない場合
+                    if not found_log and log_callback:
+                        log_callback(f"[デバッグ] ログファイルが見つかりません。チェック: {checked_paths[:3]}")
+
                     return False
-                    
+
                 except Exception as e:
                     if log_callback:
                         log_callback(f"Windows Steam>検出エラー: {e}")
@@ -552,28 +688,32 @@ class ConsoleMonitor:
             return False
     
     @staticmethod
-    def wait_for_steam_prompt(timeout: float = 10.0, interval: float = 0.5, log_callback=None) -> bool:
+    def wait_for_steam_prompt(steamcmd_path: str = None, timeout: float = 10.0, interval: float = 0.5, log_callback=None) -> bool:
         """Steam>プロンプトが表示されるまで待機"""
         elapsed = 0.0
-        
+
         if log_callback:
             log_callback("Steam>プロンプトを待機中...")
-        
+
+        check_count = 0
         while elapsed < timeout:
             # Steam>プロンプトをチェック
-            if ConsoleMonitor.check_steam_prompt(log_callback=None):  # ログは多すぎるので抑制
+            check_count += 1
+            # 最初の1回だけデバッグログを有効にする
+            debug_log = log_callback if check_count == 1 else None
+            if ConsoleMonitor.check_steam_prompt(steamcmd_path=steamcmd_path, log_callback=debug_log):
                 if log_callback:
                     log_callback(f"Steam>プロンプトを検出しました ({elapsed:.1f}秒後)")
                 return True
-            
+
             time.sleep(interval)
             elapsed += interval
-            
+
             # 1秒ごとに進捗ログ
             if int(elapsed * 2) % 2 == 0 and elapsed > 0:
                 if log_callback:
                     log_callback(f"Steam>プロンプト待機中... ({elapsed:.0f}秒経過)")
-        
+
         if log_callback:
             log_callback(f"Steam>プロンプト待機タイムアウト ({timeout}秒)")
         return False
@@ -635,24 +775,29 @@ class ConsoleMonitor:
                 
             elif system == "Windows":
                 # Check if steamcmd.exe process is still running
-                check_result = subprocess.run(
-                    ['tasklist', '/FI', 'IMAGENAME eq steamcmd.exe'],
-                    capture_output=True, text=True
-                )
+                try:
+                    check_result = subprocess.run(
+                        ['tasklist', '/FI', 'IMAGENAME eq steamcmd.exe'],
+                        capture_output=True,
+                        encoding='cp932',
+                        errors='ignore'
+                    )
 
-                has_steamcmd = "steamcmd.exe" in check_result.stdout
+                    has_steamcmd = check_result.stdout and "steamcmd.exe" in check_result.stdout
 
-                # Apply grace period - don't close console during initial startup
-                if not has_steamcmd:
-                    if monitor_count > grace_period_checks:
-                        result['closed'] = True
-                        result['log_message'] = "Windows: SteamCMDコンソールが見つかりません"
+                    # Apply grace period - don't close console during initial startup
+                    if not has_steamcmd:
+                        if monitor_count > grace_period_checks:
+                            result['closed'] = True
+                            result['log_message'] = "Windows: SteamCMDコンソールが見つかりません"
+                        else:
+                            result['log_message'] = f"Windows: 起動待機中... ({monitor_count}/{grace_period_checks})"
                     else:
-                        result['log_message'] = f"Windows: 起動待機中... ({monitor_count}/{grace_period_checks})"
-                else:
-                    # 1秒ごとに出力（0.5秒 × 2）
-                    if monitor_count % 2 == 0:
-                        result['log_message'] = f"[コンソール監視] 存在確認OK - steamcmd.exe検出 (check #{monitor_count})"
+                        # 1秒ごとに出力（0.5秒 × 2）
+                        if monitor_count % 2 == 0:
+                            result['log_message'] = f"[コンソール監視] 存在確認OK - steamcmd.exe検出 (check #{monitor_count})"
+                except Exception as e:
+                    result['log_message'] = f"Windows: tasklist実行エラー: {e}"
             else:
                 # Linux - 現在は未実装
                 pass
