@@ -478,22 +478,33 @@ class ConsoleMonitor:
         
         try:
             if system == "Darwin":  # macOS
-                # AppleScriptでSteam>プロンプトをチェック
+                # LoginMonitorと同じ方式でAppleScriptを使用
                 check_script = '''
                 tell application "Terminal"
-                    set hasPrompt to false
+                    set promptStatus to "unknown"
                     try
                         repeat with w in windows
                             try
                                 set tabContent to contents of selected tab of w
-                                if tabContent contains "steamcmd" and tabContent ends with "Steam> " then
-                                    set hasPrompt to true
-                                    exit repeat
+                                if tabContent contains "steamcmd" or tabContent contains "Steam>" then
+                                    -- 最後の50文字を取得して、その中にSteam>が含まれるか確認
+                                    set textLength to length of tabContent
+                                    if textLength > 50 then
+                                        set lastPart to text (textLength - 50) thru textLength of tabContent
+                                    else
+                                        set lastPart to tabContent
+                                    end if
+                                    
+                                    -- プロンプト待機状態を確認（最後の部分にSteam>があるか）
+                                    if lastPart contains "Steam>" then
+                                        set promptStatus to "has_prompt"
+                                        exit repeat
+                                    end if
                                 end if
                             end try
                         end repeat
                     end try
-                    return hasPrompt
+                    return promptStatus
                 end tell
                 '''
                 
@@ -503,7 +514,8 @@ class ConsoleMonitor:
                 )
                 
                 if result.returncode == 0:
-                    has_prompt = result.stdout.strip() == "true"
+                    status = result.stdout.strip()
+                    has_prompt = (status == "has_prompt")
                     if log_callback and has_prompt:
                         log_callback("Steam>プロンプトを検出しました")
                     return has_prompt
