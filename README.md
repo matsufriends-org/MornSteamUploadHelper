@@ -1,5 +1,5 @@
 # Morn Steam アップロードヘルパー
-<img width="1210" height="1010" alt="image" src="https://github.com/user-attachments/assets/0bda36c0-98d0-4c89-8f0d-e42b30d102b8" />
+<img width="1222" height="1186" alt="image" src="https://github.com/user-attachments/assets/a8b646b5-bd3f-485b-a959-e3af3c6835bc" />
 
 Steamへのゲームアップロードを簡単にするGUIツールです。複雑なSteamCMDコマンドを覚える必要なく、直感的な操作でゲームをSteamにアップロードできます。
 
