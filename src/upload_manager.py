@@ -373,31 +373,37 @@ class UploadManager:
     def _monitor_upload_completion(self):
         """アップロードの完了を監視"""
         def monitor_thread():
+            # 最初に少し待機してアップロード開始を確認
+            time.sleep(2)
+
             # Steam>プロンプトが戻ってくるまで監視
             max_wait = 600  # 最大10分待機
             check_interval = 1.0  # 1秒間隔でチェック
             elapsed = 0
-            
+
             while elapsed < max_wait:
-                # Steam>プロンプトが戻ってきたかチェック
-                if self._check_steam_prompt_returned():
-                    self._log_message("アップロードが完了しました！")
+                # まず完了メッセージをチェック（より確実）
+                if self._check_upload_complete():
+                    self._log_message("アップロード完了メッセージを検出しました！")
+                    # 少し待ってSteam>プロンプトが戻るのを待つ
+                    time.sleep(1)
+
                     # ダイアログを閉じる
                     self._close_upload_progress_dialog()
                     # 成功メッセージを表示
                     DialogBuilder.show_success_dialog(
-                        self.page, 
+                        self.page,
                         "アップロードが正常に完了しました！\nSteamパートナーサイトで確認してください。"
                     )
                     break
-                    
+
                 time.sleep(check_interval)
                 elapsed += check_interval
-                
+
                 # 10秒ごとに進捗をログ
                 if int(elapsed) % 10 == 0 and elapsed > 0:
                     self._log_message(f"アップロード処理中... ({elapsed}秒経過)")
-            
+
             if elapsed >= max_wait:
                 self._log_message("アップロード監視がタイムアウトしました")
                 self._close_upload_progress_dialog()
@@ -405,7 +411,7 @@ class UploadManager:
                     self.page,
                     "アップロード処理が長時間かかっています。\nSteamCMDコンソールで状況を確認してください。"
                 )
-        
+
         # 監視スレッドを開始
         thread = threading.Thread(target=monitor_thread, daemon=True)
         thread.start()
@@ -413,8 +419,17 @@ class UploadManager:
     def _check_steam_prompt_returned(self) -> bool:
         """Steam>プロンプトが戻ってきたかチェック"""
         # platform_helpersの汎用実装を使用
-        return ConsoleMonitor.check_steam_prompt()
-    
+        steamcmd_path = self.helper.settings.get("steamcmd_path")
+        return ConsoleMonitor.check_steam_prompt(steamcmd_path=steamcmd_path, log_callback=self._log_message)
+
+    def _check_upload_complete(self) -> bool:
+        """アップロード完了をチェック"""
+        # platform_helpersの汎用実装を使用
+        from platform_helpers import ConsoleMonitor
+        # 完了メッセージのパターンをチェック
+        steamcmd_path = self.helper.settings.get("steamcmd_path")
+        return ConsoleMonitor.check_for_pattern("Successfully finished AppID", steamcmd_path=steamcmd_path)
+
     
     def _execute_download_windows(self, download_command: str, app_id: str):
         """Windows環境でのダウンロード実行"""
@@ -532,59 +547,60 @@ class UploadManager:
     def _monitor_download_completion(self, app_id: str):
         """ダウンロードの完了を監視"""
         def monitor_thread():
+            # 最初に少し待機してダウンロード開始を確認
+            time.sleep(2)
+
             # Steam>プロンプトが戻ってくるまで監視
             max_wait = 600  # 最大10分待機
             check_interval = 1.0  # 1秒間隔でチェック
             elapsed = 0
-            
+
             # エラーメッセージをチェックするためのフラグ
             error_detected = False
-            
+
             while elapsed < max_wait:
-                # Steam>プロンプトが戻ってきたかチェック
-                if self._check_steam_prompt_returned():
-                    self._log_message("Steam>プロンプトが戻りました。エラーチェック中...")
-                    # 少し待ってからエラーチェック（出力が完全に終わるのを待つ）
-                    time.sleep(0.5)
-                    
-                    # エラーが発生した場合
-                    if self._check_download_error():
-                        self._log_message("ダウンロードエラーを検出しました")
-                        self._close_download_progress_dialog()
-                        DialogBuilder.show_error_dialog(
-                            self.page,
-                            "ダウンロードに失敗しました。\n\n考えられる原因：\n" +
-                            "• App IDまたはDepot IDが正しくない\n" +
-                            "• このゲームを所有していない\n" +
-                            "• このデポはダウンロード不可\n" +
-                            "• 認証が必要（anonymousログインでは不可）\n\n" +
-                            "ゲームを所有しており、正しいIDを使用している場合は、\n" +
-                            "別のデポIDを試すか、DepotDownloaderなどの\n" +
-                            "サードパーティツールの使用を検討してください。"
-                        )
-                        error_detected = True
-                        break
-                    
-                    # 正常に完了した場合
-                    self._log_message("ダウンロードが完了しました！")
+                # まず完了メッセージをチェック（より確実）
+                if self._check_download_complete():
+                    self._log_message("ダウンロード完了メッセージを検出しました！")
+                    # 少し待ってSteam>プロンプトが戻るのを待つ
+                    time.sleep(1)
+
                     # ダウンロード先を確認
                     download_path = self._get_download_path(app_id)
                     # ダイアログを閉じる
                     self._close_download_progress_dialog()
                     # 成功メッセージを表示
                     DialogBuilder.show_success_dialog(
-                        self.page, 
+                        self.page,
                         f"ダウンロードが正常に完了しました！\nダウンロード先: {download_path}"
                     )
                     break
-                    
+
+                # エラーチェック
+                if self._check_download_error():
+                    self._log_message("ダウンロードエラーを検出しました")
+                    self._close_download_progress_dialog()
+                    DialogBuilder.show_error_dialog(
+                        self.page,
+                        "ダウンロードに失敗しました。\n\n考えられる原因：\n" +
+                        "• App IDまたはDepot IDが正しくない\n" +
+                        "• このゲームを所有していない\n" +
+                        "• このデポはダウンロード不可\n" +
+                        "• 認証が必要（anonymousログインでは不可）\n\n" +
+                        "ゲームを所有しており、正しいIDを使用している場合は、\n" +
+                        "別のデポIDを試すか、DepotDownloaderなどの\n" +
+                        "サードパーティツールの使用を検討してください。"
+                    )
+                    error_detected = True
+                    break
+
                 time.sleep(check_interval)
                 elapsed += check_interval
-                
+
                 # 10秒ごとに進捗をログ
                 if int(elapsed) % 10 == 0 and elapsed > 0:
                     self._log_message(f"ダウンロード処理中... ({elapsed}秒経過)")
-            
+
             if elapsed >= max_wait:
                 self._log_message("ダウンロード監視がタイムアウトしました")
                 self._close_download_progress_dialog()
@@ -592,7 +608,7 @@ class UploadManager:
                     self.page,
                     "ダウンロード処理が長時間かかっています。\nSteamCMDコンソールで状況を確認してください。"
                 )
-        
+
         # 監視スレッドを開始
         thread = threading.Thread(target=monitor_thread, daemon=True)
         thread.start()
@@ -629,7 +645,15 @@ class UploadManager:
             "missing app info",
             "Missing configuration"
         ])
-    
+
+    def _check_download_complete(self) -> bool:
+        """ダウンロード完了をチェック"""
+        # platform_helpersの汎用実装を使用
+        from platform_helpers import ConsoleMonitor
+        # 完了メッセージのパターンをチェック
+        steamcmd_path = self.helper.settings.get("steamcmd_path")
+        return ConsoleMonitor.check_for_pattern("Depot download complete", steamcmd_path=steamcmd_path)
+
     def _on_download_field_change(self):
         """ダウンロードフィールドの入力変更時の処理"""
         # App IDが入力されたらビルドページボタンを有効化

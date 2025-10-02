@@ -744,7 +744,7 @@ class ConsoleMonitor:
     def check_for_error_pattern(patterns: list) -> bool:
         """コンソール出力にエラーパターンが含まれているかチェック"""
         system = platform.system()
-        
+
         try:
             if system == "Darwin":  # macOS
                 # AppleScriptでTerminalの内容をチェック
@@ -770,14 +770,14 @@ class ConsoleMonitor:
                     return errorFound
                 end tell
                 '''
-                
+
                 result = subprocess.run(
                     ['osascript', '-e', check_script],
                     capture_output=True, text=True
                 )
-                
+
                 return result.returncode == 0 and result.stdout.strip() == "true"
-                    
+
             elif system == "Windows":
                 # Windowsではログファイルから最新の内容を確認
                 # 簡易的なチェック - 最新のログファイルを読む
@@ -785,7 +785,7 @@ class ConsoleMonitor:
                     str(Path.cwd() / "logs" / "console_log.txt"),
                     str(Path.cwd().parent / "logs" / "console_log.txt"),
                 ]
-                
+
                 for log_path in log_files:
                     if os.path.exists(log_path):
                         try:
@@ -796,23 +796,96 @@ class ConsoleMonitor:
                                 read_size = min(1000, file_size)
                                 f.seek(max(0, file_size - read_size))
                                 last_content = f.read()
-                                
+
                                 # エラーパターンをチェック
                                 for pattern in patterns:
                                     if pattern in last_content:
                                         return True
                         except:
                             continue
-                
+
                 return False
-                
+
             else:  # Linux
                 # Linux版は未実装
                 return False
-                
+
         except Exception:
             return False
-    
+
+    @staticmethod
+    def check_for_pattern(pattern: str, steamcmd_path: str = None) -> bool:
+        """コンソール出力に特定のパターンが含まれているかチェック（単一パターン版）"""
+        system = platform.system()
+
+        try:
+            if system == "Darwin":  # macOS
+                # AppleScriptでTerminalの内容をチェック
+                escaped_pattern = pattern.replace('"', '\\"')
+                check_script = f'''
+                tell application "Terminal"
+                    set patternFound to false
+                    try
+                        repeat with w in windows
+                            try
+                                set tabContent to contents of selected tab of w
+                                if tabContent contains "steamcmd" or tabContent contains "Steam>" then
+                                    if tabContent contains "{escaped_pattern}" then
+                                        set patternFound to true
+                                        exit repeat
+                                    end if
+                                end if
+                            end try
+                        end repeat
+                    end try
+                    return patternFound
+                end tell
+                '''
+
+                result = subprocess.run(
+                    ['osascript', '-e', check_script],
+                    capture_output=True, text=True
+                )
+
+                return result.returncode == 0 and result.stdout.strip() == "true"
+
+            elif system == "Windows":
+                # Windowsではログファイルから最新の内容を確認
+                log_files = LoginMonitor._get_log_files(steamcmd_path) if steamcmd_path else []
+
+                # steamcmd_pathがない場合は標準的なパスも試す
+                if not steamcmd_path:
+                    log_files.extend([
+                        str(Path.cwd() / "logs" / "console_log.txt"),
+                        str(Path.cwd().parent / "logs" / "console_log.txt"),
+                    ])
+
+                for log_path in log_files:
+                    if os.path.exists(log_path):
+                        try:
+                            with open(log_path, 'r', encoding='utf-8', errors='ignore') as f:
+                                # 最後の2000バイトを読む（完了メッセージは長い可能性がある）
+                                f.seek(0, 2)
+                                file_size = f.tell()
+                                read_size = min(2000, file_size)
+                                f.seek(max(0, file_size - read_size))
+                                last_content = f.read()
+
+                                # パターンをチェック
+                                if pattern in last_content:
+                                    return True
+                        except:
+                            continue
+
+                return False
+
+            else:  # Linux
+                # Linux版は未実装
+                return False
+
+        except Exception:
+            return False
+
     @staticmethod
     def check_console_status(monitor_count: int, grace_period_checks: int) -> dict:
         """コンソールの状態をチェック"""
