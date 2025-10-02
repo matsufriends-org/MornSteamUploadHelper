@@ -15,6 +15,20 @@ from steam_upload_helper import SteamUploadHelper
 from utils import *
 from dialogs import *
 
+# UI 定数
+SECTION_PADDING = 15  # セクション内のpadding
+SECTION_VERTICAL_PADDING = 0  # セクション間の垂直padding
+HEADER_PADDING = 15  # ヘッダーのpadding
+HEADER_BOTTOM_PADDING = 5  # ヘッダー下部のpadding
+SECTION_TITLE_SPACING = 0  # セクションタイトルと内容の間隔
+FIELD_SPACING = 10  # フィールド間の間隔（横・縦共通）
+FIELD_COLUMN_SPACING = 5  # フィールド列の間隔
+BUTTON_SPACING = 10  # ボタン間の間隔
+CONTENT_SPACING = 10  # 一般的なコンテンツ間隔
+SMALL_SPACING = 5  # 小さい間隔
+TINY_SPACING = 2  # 極小間隔
+LARGE_SPACING = 20  # 大きい間隔（左右分割など）
+
 # Import managers
 from login_manager import LoginManager
 from config_manager import ConfigManager
@@ -103,6 +117,9 @@ class SteamUploadApp:
             
             # 3. アップロード
             self._build_upload_section(),
+            
+            # 4. ダウンロード
+            self._build_download_section(),
         ])
         
         self.page.add(content)
@@ -120,7 +137,7 @@ class SteamUploadApp:
                     on_click=lambda e: self.system_settings_manager.show_system_settings_dialog()
                 )
             ]),
-            padding=20
+            padding=ft.padding.only(left=HEADER_PADDING, right=HEADER_PADDING, top=HEADER_PADDING, bottom=HEADER_BOTTOM_PADDING)
         )
     
     def _build_login_section(self):
@@ -129,12 +146,15 @@ class SteamUploadApp:
             content=ft.Card(
                 content=ft.Container(
                     content=ft.Column([
-                        ft.Text("1. Steam ログイン", size=18, weight=ft.FontWeight.W_500),
-                        self.login_manager.login_error_text,
+                        ft.Row([
+                            ft.Text("1. Steam ログイン", size=18, weight=ft.FontWeight.W_500),
+                            ft.Container(expand=True),
+                            self.login_manager.login_error_text,
+                        ]),
                         ft.Row([
                             self.login_manager.username_field,
                             self.login_manager.password_field
-                        ]),
+                        ], spacing=FIELD_SPACING),
                         ft.Row([
                             ft.Column([
                                 self.login_manager.steam_guard_field,
@@ -143,23 +163,23 @@ class SteamUploadApp:
                                     size=11,
                                     color=ft.Colors.GREY
                                 )
-                            ], expand=True),
+                            ], spacing=TINY_SPACING, expand=True),
                             ft.Column([
                                 ft.Row([
                                     self.login_manager.login_button,
-                                ], spacing=5),
+                                ], spacing=FIELD_COLUMN_SPACING),
                                 ft.Row([
                                     ft.Icon(ft.Icons.WARNING, color=ft.Colors.AMBER, size=16),
                                     ft.Text("コンソールは閉じないで！", 
                                            size=12, color=ft.Colors.AMBER, weight=ft.FontWeight.BOLD)
-                                ])
-                            ], horizontal_alignment=ft.CrossAxisAlignment.END)
+                                ], spacing=TINY_SPACING)
+                            ], spacing=TINY_SPACING, horizontal_alignment=ft.CrossAxisAlignment.END)
                         ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
-                    ]),
-                    padding=15
+                    ], spacing=FIELD_SPACING),
+                    padding=SECTION_PADDING
                 )
             ),
-            padding=ft.padding.symmetric(horizontal=15, vertical=0)
+            padding=ft.padding.symmetric(horizontal=SECTION_PADDING, vertical=SECTION_VERTICAL_PADDING)
         )
     
     def _build_config_section(self):
@@ -186,7 +206,7 @@ class SteamUploadApp:
                             self.config_manager.config_dropdown,
                             self.config_manager.config_build_page_btn,
                             self.config_manager.config_depot_page_btn
-                        ], spacing=5),
+                        ], spacing=SMALL_SPACING),
                         ft.Divider(),
                         ft.Row([
                             ft.Text("App ID:", size=14),
@@ -195,21 +215,21 @@ class SteamUploadApp:
                             self.config_manager.depot_id_field,
                             ft.Text("ブランチ:", size=14),
                             self.config_manager.branch_field,
-                        ], spacing=10),
+                        ], spacing=FIELD_SPACING),
                         ft.Row([
                             ft.Text("説明:", size=14),
                             self.config_manager.upload_description_field,
-                        ], spacing=10),
+                        ], spacing=FIELD_SPACING),
                         ft.Row([
                             ft.Text("コンテンツパス:", size=14),
                             self.config_manager.content_path_field,
                             open_folder_btn
-                        ], spacing=10),
+                        ], spacing=FIELD_SPACING),
                     ]),
-                    padding=15
+                    padding=SECTION_PADDING
                 )
             ),
-            padding=ft.padding.symmetric(horizontal=15, vertical=0)
+            padding=ft.padding.symmetric(horizontal=SECTION_PADDING, vertical=SECTION_VERTICAL_PADDING)
         )
     
     def _build_upload_section(self):
@@ -231,15 +251,69 @@ class SteamUploadApp:
                                 alignment=ft.alignment.center_left
                             )
                         ]),
-                        ft.Container(height=10),
+                        ft.Container(height=CONTENT_SPACING),
                         ft.Row([
                             self.upload_manager.upload_button,
                         ], alignment=ft.MainAxisAlignment.CENTER),
                     ]),
-                    padding=15
+                    padding=SECTION_PADDING
                 )
             ),
-            padding=ft.padding.symmetric(horizontal=15, vertical=0)
+            padding=ft.padding.symmetric(horizontal=SECTION_PADDING, vertical=SECTION_VERTICAL_PADDING)
+        )
+    
+    def _build_download_section(self):
+        """ダウンロードセクションを構築"""
+        return ft.Container(
+            content=ft.Card(
+                content=ft.Container(
+                    content=ft.Column([
+                        ft.Text("4. ダウンロード（Depot Download）", size=18, weight=ft.FontWeight.W_500),
+                        # 左右に分割
+                        ft.Row([
+                            # 左側: 入力欄
+                            ft.Column([
+                                ft.Row([
+                                    self.upload_manager.download_app_id_field,
+                                    self.upload_manager.download_depot_id_field,
+                                ], spacing=FIELD_SPACING),
+                                ft.Row([
+                                    self.upload_manager.download_manifest_gid_field,
+                                    self.upload_manager.open_builds_page_button,
+                                ], spacing=FIELD_SPACING),
+                            ], spacing=FIELD_SPACING, expand=True),
+                            
+                            # 右側: 説明文とボタン
+                            ft.Column([
+                                # 説明文
+                                ft.Container(
+                                    content=ft.Text(
+                                        "⚠️ アクティブなブランチの最新ビルドのみダウンロード可能\n" +
+                                        "（非アクティブブランチ・過去のビルドは不可）",
+                                        size=12,
+                                        color=ft.Colors.ORANGE
+                                    ),
+                                    bgcolor=ft.Colors.ORANGE_50,
+                                    padding=CONTENT_SPACING,
+                                    border_radius=5,
+                                    width=400,
+                                ),
+                                ft.Container(height=SMALL_SPACING),
+                                # ログイン状態表示
+                                self.upload_manager.download_login_status_text,
+                                ft.Container(height=TINY_SPACING),
+                                # ボタン
+                                ft.Row([
+                                    self.upload_manager.download_start_button,
+                                    self.upload_manager.open_download_folder_button,
+                                ], spacing=FIELD_SPACING),
+                            ], spacing=FIELD_COLUMN_SPACING),
+                        ], spacing=LARGE_SPACING, alignment=ft.MainAxisAlignment.START),
+                    ], spacing=SECTION_TITLE_SPACING),
+                    padding=SECTION_PADDING
+                )
+            ),
+            padding=ft.padding.symmetric(horizontal=SECTION_PADDING, vertical=SECTION_VERTICAL_PADDING)
         )
     
     def _initialize_state(self):
@@ -334,6 +408,11 @@ class SteamUploadApp:
     def _handle_console_closed(self):
         """コンソールが閉じられた時の処理"""
         self._log_message("コンソールが閉じられました")
+        
+        # ログイン監視を停止
+        from platform_helpers import LoginMonitor
+        LoginMonitor.stop_monitoring()
+        self._log_message("ログイン監視を停止しました")
         
         # ログイン待機ダイアログを閉じる
         if hasattr(self.login_manager, '_login_waiting_dialog') and self.login_manager._login_waiting_dialog:
