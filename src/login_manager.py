@@ -31,13 +31,16 @@ class LoginManager:
         self.on_login_success = None
         self.on_login_failure = None
         self.enable_controls_callback = None
+        
+        # スレッド管理
+        self.login_monitor_thread = None
     
     def create_ui_components(self):
         """ログイン関連のUIコンポーネントを作成"""
         self.username_field = ft.TextField(
             label="Steam ユーザー名 *",
             value=self.helper.settings.get("username", ""),
-            width=300,
+            width=200,
             autofocus=True
         )
         
@@ -179,7 +182,7 @@ class LoginManager:
             'on_mobile_2fa': self._handle_mobile_2fa
         }
         
-        LoginMonitor.monitor_login(
+        self.login_monitor_thread = LoginMonitor.monitor_login(
             steamcmd_path,
             self.username_field.value,
             callbacks,

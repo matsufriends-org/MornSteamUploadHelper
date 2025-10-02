@@ -25,7 +25,7 @@ def start_console_monitor(helper, login_status, login_button, enable_controls_fu
         log_message("[コンソール監視] monitor_console関数が開始されました")
         log_message(f"[コンソール監視] 監視対象: helper.steamcmd_terminal = {helper.steamcmd_terminal}")
         monitor_count = 0
-        grace_period_checks = 2  # First ~2.5 seconds grace period for process startup
+        grace_period_checks = 10  # First ~5 seconds grace period for process startup
         
         log_message(f"[コンソール監視] whileループ開始前: helper.steamcmd_terminal = {helper.steamcmd_terminal}")
         while helper.steamcmd_terminal:

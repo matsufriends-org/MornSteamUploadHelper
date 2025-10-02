@@ -169,10 +169,20 @@ cd "{os.path.dirname(abs_steamcmd_path)}"
 class LoginMonitor:
     """ログイン状態の監視を管理"""
     
+    _stop_monitoring = False  # 監視停止フラグ
+    
+    @staticmethod
+    def stop_monitoring():
+        """監視を停止"""
+        LoginMonitor._stop_monitoring = True
+    
     @staticmethod
     def monitor_login(steamcmd_path: str, username: str, callbacks: dict, 
                      timeout: int = 30, log_callback=None):
         """ログイン状態を監視（バックグラウンドスレッドで実行）"""
+        # 監視開始前にフラグをリセット
+        LoginMonitor._stop_monitoring = False
+        
         def monitor_thread():
             system = platform.system()
             
@@ -342,6 +352,12 @@ class LoginMonitor:
                 log_callback(f"  - {lf} ({exists})")
 
         while check_count < max_checks:
+            # 停止フラグチェック
+            if LoginMonitor._stop_monitoring:
+                if log_callback:
+                    log_callback(f"[ログイン監視] 監視停止フラグを検出 - 監視を終了します")
+                break
+            
             # プロセスチェック
             try:
                 result = subprocess.run(
@@ -407,6 +423,12 @@ class LoginMonitor:
             log_callback(f"[ログイン監視] 開始 (macOS, 最大{timeout}秒間監視)")
         
         while check_count < max_checks:
+            # 停止フラグチェック
+            if LoginMonitor._stop_monitoring:
+                if log_callback:
+                    log_callback(f"[ログイン監視] 監視停止フラグを検出 - 監視を終了します")
+                break
+            
             # Terminal窓チェック
             window_check = subprocess.run(
                 ['osascript', '-e', 'tell application "Terminal" to count windows'],
@@ -719,6 +741,79 @@ class ConsoleMonitor:
         return False
     
     @staticmethod
+    def check_for_error_pattern(patterns: list) -> bool:
+        """コンソール出力にエラーパターンが含まれているかチェック"""
+        system = platform.system()
+        
+        try:
+            if system == "Darwin":  # macOS
+                # AppleScriptでTerminalの内容をチェック
+                # 各パターンに対してダブルクォートをエスケープ
+                escaped_patterns = [pattern.replace('"', '\\"') for pattern in patterns]
+                patterns_condition = ' or '.join([f'tabContent contains "{pattern}"' for pattern in escaped_patterns])
+                check_script = f'''
+                tell application "Terminal"
+                    set errorFound to false
+                    try
+                        repeat with w in windows
+                            try
+                                set tabContent to contents of selected tab of w
+                                if tabContent contains "steamcmd" or tabContent contains "Steam>" then
+                                    if {patterns_condition} then
+                                        set errorFound to true
+                                        exit repeat
+                                    end if
+                                end if
+                            end try
+                        end repeat
+                    end try
+                    return errorFound
+                end tell
+                '''
+                
+                result = subprocess.run(
+                    ['osascript', '-e', check_script],
+                    capture_output=True, text=True
+                )
+                
+                return result.returncode == 0 and result.stdout.strip() == "true"
+                    
+            elif system == "Windows":
+                # Windowsではログファイルから最新の内容を確認
+                # 簡易的なチェック - 最新のログファイルを読む
+                log_files = [
+                    str(Path.cwd() / "logs" / "console_log.txt"),
+                    str(Path.cwd().parent / "logs" / "console_log.txt"),
+                ]
+                
+                for log_path in log_files:
+                    if os.path.exists(log_path):
+                        try:
+                            with open(log_path, 'r', encoding='utf-8', errors='ignore') as f:
+                                # 最後の1000バイトを読む
+                                f.seek(0, 2)
+                                file_size = f.tell()
+                                read_size = min(1000, file_size)
+                                f.seek(max(0, file_size - read_size))
+                                last_content = f.read()
+                                
+                                # エラーパターンをチェック
+                                for pattern in patterns:
+                                    if pattern in last_content:
+                                        return True
+                        except:
+                            continue
+                
+                return False
+                
+            else:  # Linux
+                # Linux版は未実装
+                return False
+                
+        except Exception:
+            return False
+    
+    @staticmethod
     def check_console_status(monitor_count: int, grace_period_checks: int) -> dict:
         """コンソールの状態をチェック"""
         system = platform.system()
@@ -758,17 +853,33 @@ class ConsoleMonitor:
                         capture_output=True, text=True
                     )
                     
-                    # Also check using ps command as backup
-                    ps_result = subprocess.run(
-                        ['ps', 'aux'],
-                        capture_output=True, text=True
-                    )
-                    has_steamcmd_process = 'steamcmd' in ps_result.stdout.lower()
+                    # pgrep を使用してより正確にプロセスを検出
+                    has_steamcmd_process = False
+                    try:
+                        # +loginを含むsteamcmdプロセスを探す
+                        pgrep_result = subprocess.run(
+                            ['pgrep', '-f', 'steamcmd.*\\.sh.*\\+login'],
+                            capture_output=True, text=True
+                        )
+                        if pgrep_result.stdout.strip():
+                            has_steamcmd_process = True
+                    except:
+                        # pgrepが失敗した場合はプロセスなしとする
+                        pass
                     
-                    if check_result.stdout.strip() != "true" and not has_steamcmd_process:
+                    # Terminal windowsがfalseでも起動直後は猶予を与える
+                    if check_result.stdout.strip() != "true":
+                        if monitor_count > grace_period_checks:
+                            result['closed'] = True
+                            result['log_message'] = f"macOS: Terminalウィンドウが閉じられました"
+                        else:
+                            result['log_message'] = f"macOS: 起動待機中... ({monitor_count}/{grace_period_checks})"
+                    elif not has_steamcmd_process:
+                        # Terminal窓はあるがプロセスがない場合も閉じたと判定
                         result['closed'] = True
-                        result['log_message'] = f"macOS: SteamCMDコンソールが見つかりません (AppleScript: {check_result.stdout.strip()}, ps: {has_steamcmd_process})"
+                        result['log_message'] = f"macOS: SteamCMDプロセスが終了しました"
                     else:
+                        # 両方とも存在する場合のみOK
                         # 1秒ごとに出力（0.5秒 × 2）
                         if monitor_count % 2 == 0:
                             result['log_message'] = f"[コンソール監視] 存在確認OK - Terminal windows: {check_result.stdout.strip()}, steamcmd process: {has_steamcmd_process} (check #{monitor_count})"
