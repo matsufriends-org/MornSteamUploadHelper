@@ -169,8 +169,5 @@ jobs:
             artifacts/MornSteamUploadHelper-Windows/MornSteamUploadHelper-*-Portable-Windows.zip
             artifacts/MornSteamUploadHelper-macOS/MornSteamUploadHelper-*-macOS.dmg
           body: |
-            ## Changes
-            ${{ github.event.head_commit.message }}
-
             ## Commits
             https://github.com/${{ github.repository }}/compare/${{ github.event.before }}...${{ github.sha }}
