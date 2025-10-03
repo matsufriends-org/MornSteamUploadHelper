@@ -31,7 +31,13 @@ if platform.system() == "Darwin":
 import flet as ft
 
 # Import main application
-from .main_app import main as app_main
+# Use absolute import for PyInstaller compatibility
+if __package__:
+    from .main_app import main as app_main
+else:
+    # When running as script (e.g., via PyInstaller)
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    from main_app import main as app_main
 
 def check_platform():
     """プラットフォームをチェックし、非対応OSの場合はエラーを表示して終了"""
