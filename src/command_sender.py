@@ -5,7 +5,7 @@ import subprocess
 import time
 from pathlib import Path
 from typing import Optional, Callable
-from platform_helpers import ConsoleMonitor
+from .platform_helpers import ConsoleMonitor
 
 
 class CommandSender:

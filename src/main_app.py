@@ -10,10 +10,10 @@ import os
 import time
 import platform
 
-from constants import *
-from steam_upload_helper import SteamUploadHelper
-from utils import *
-from dialogs import *
+from .constants import *
+from .steam_upload_helper import SteamUploadHelper
+from .utils import *
+from .dialogs import *
 
 # UI 定数
 SECTION_PADDING = 15  # セクション内のpadding
@@ -30,13 +30,13 @@ TINY_SPACING = 2  # 極小間隔
 LARGE_SPACING = 20  # 大きい間隔（左右分割など）
 
 # Import managers
-from login_manager import LoginManager
-from config_manager import ConfigManager
-from upload_manager import UploadManager
-from system_settings_manager import SystemSettingsManager
-from ui_helpers import DialogBuilder, PlatformCommands
+from .login_manager import LoginManager
+from .config_manager import ConfigManager
+from .upload_manager import UploadManager
+from .system_settings_manager import SystemSettingsManager
+from .ui_helpers import DialogBuilder, PlatformCommands
 try:
-    from console_monitor import start_console_monitor
+    from .console_monitor import start_console_monitor
 except ImportError:
     # Console monitoring is optional
     def start_console_monitor(*args, **kwargs):
@@ -126,7 +126,7 @@ class SteamUploadApp:
     
     def _build_header(self):
         """ヘッダーセクションを構築"""
-        from constants import APP_VERSION
+        from .constants import APP_VERSION
         import sys
         import os
 
@@ -426,7 +426,7 @@ class SteamUploadApp:
         self._log_message("コンソールが閉じられました")
         
         # ログイン監視を停止
-        from platform_helpers import LoginMonitor
+        from .platform_helpers import LoginMonitor
         LoginMonitor.stop_monitoring()
         self._log_message("ログイン監視を停止しました")
         

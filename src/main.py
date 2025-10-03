@@ -31,7 +31,7 @@ if platform.system() == "Darwin":
 import flet as ft
 
 # Import main application
-from main_app import main as app_main
+from .main_app import main as app_main
 
 def check_platform():
     """プラットフォームをチェックし、非対応OSの場合はエラーを表示して終了"""

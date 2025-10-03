@@ -7,7 +7,7 @@ import webbrowser
 from datetime import datetime
 from pathlib import Path
 # OS依存の処理はplatform_helpersからインポート
-from platform_helpers import PlatformUtilities, SteamCMDLauncher
+from .platform_helpers import PlatformUtilities, SteamCMDLauncher
 
 
 def open_content_folder(content_path):

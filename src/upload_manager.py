@@ -9,9 +9,9 @@ import subprocess
 import threading
 from pathlib import Path
 
-from ui_helpers import DialogBuilder, PlatformCommands
-from command_sender import CommandSender
-from platform_helpers import ConsoleMonitor
+from .ui_helpers import DialogBuilder, PlatformCommands
+from .command_sender import CommandSender
+from .platform_helpers import ConsoleMonitor
 
 
 class UploadManager:
@@ -425,7 +425,7 @@ class UploadManager:
     def _check_upload_complete(self) -> bool:
         """アップロード完了をチェック"""
         # platform_helpersの汎用実装を使用
-        from platform_helpers import ConsoleMonitor
+        from .platform_helpers import ConsoleMonitor
         # 完了メッセージのパターンをチェック
         steamcmd_path = self.helper.settings.get("steamcmd_path")
         return ConsoleMonitor.check_for_pattern("Successfully finished AppID", steamcmd_path=steamcmd_path)
@@ -622,7 +622,7 @@ class UploadManager:
             # steamcmd_pathが保存されていない場合はcontent_builder_pathから取得
             content_builder_path = self.helper.settings.get("content_builder_path")
             if content_builder_path:
-                from platform_helpers import SteamCMDLauncher
+                from .platform_helpers import SteamCMDLauncher
                 steamcmd_path = SteamCMDLauncher.get_steamcmd_path(content_builder_path)
         
         if steamcmd_path:
@@ -637,7 +637,7 @@ class UploadManager:
     def _check_download_error(self) -> bool:
         """ダウンロードエラーをチェック"""
         # platform_helpersの汎用実装を使用
-        from platform_helpers import ConsoleMonitor
+        from .platform_helpers import ConsoleMonitor
         # エラーメッセージのパターンをチェック
         return ConsoleMonitor.check_for_error_pattern([
             "Depot download failed",
@@ -649,7 +649,7 @@ class UploadManager:
     def _check_download_complete(self) -> bool:
         """ダウンロード完了をチェック"""
         # platform_helpersの汎用実装を使用
-        from platform_helpers import ConsoleMonitor
+        from .platform_helpers import ConsoleMonitor
         # 完了メッセージのパターンをチェック
         steamcmd_path = self.helper.settings.get("steamcmd_path")
         return ConsoleMonitor.check_for_pattern("Depot download complete", steamcmd_path=steamcmd_path)
