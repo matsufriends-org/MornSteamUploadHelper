@@ -50,9 +50,11 @@ jobs:
 
           # Configure Python to use site-packages
           @"
-          import site
-          .
-          Lib\site-packages
+python312.zip
+.
+Lib\site-packages
+
+import site
           "@ | Out-File -FilePath "dist-portable\MornSteamUploadHelper-Portable\python-embed\python312._pth" -Encoding ascii
 
           # Install pip

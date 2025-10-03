@@ -40,9 +40,13 @@ del python-embed.zip
 
 REM Enable site-packages in embedded Python
 echo Configuring Python...
-echo import site > "%APP_DIR%\python-embed\python312._pth"
-echo . >> "%APP_DIR%\python-embed\python312._pth"
-echo Lib\site-packages >> "%APP_DIR%\python-embed\python312._pth"
+(
+echo python312.zip
+echo .
+echo Lib\site-packages
+echo.
+echo import site
+) > "%APP_DIR%\python-embed\python312._pth"
 
 REM Download and install pip
 echo Installing pip...
