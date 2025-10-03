@@ -41,7 +41,7 @@ jobs:
 
       - name: Build Windows executable
         run: |
-          python -m PyInstaller MornSteamUploadHelper_Windows.spec
+          python -m PyInstaller --clean MornSteamUploadHelper_Windows.spec
 
       - name: Create ZIP archive
         run: |
