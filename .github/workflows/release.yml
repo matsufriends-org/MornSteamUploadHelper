@@ -32,14 +32,22 @@ jobs:
           Add-MpPreference -ExclusionProcess "pyinstaller.exe"
         shell: powershell
 
+      - name: Get version
+        id: version
+        run: |
+          $version = "v$(Get-Date -Format 'yyyy.MM.dd')-${{ github.run_number }}"
+          echo "version=$version" >> $env:GITHUB_OUTPUT
+        shell: powershell
+
       - name: Build Windows executable
         run: |
           python -m PyInstaller MornSteamUploadHelper_Windows.spec
 
       - name: Create ZIP archive
         run: |
-          # Create ZIP file for distribution
-          Compress-Archive -Path "dist\MornSteamUploadHelper.exe" -DestinationPath "dist\MornSteamUploadHelper-Windows.zip"
+          # Create ZIP file for distribution with version
+          $version = "${{ steps.version.outputs.version }}"
+          Compress-Archive -Path "dist\MornSteamUploadHelper.exe" -DestinationPath "dist\MornSteamUploadHelper-$version-Windows.zip"
 
           # Calculate SHA256 hash for reference
           $hash = (Get-FileHash -Path "dist\MornSteamUploadHelper.exe" -Algorithm SHA256).Hash
@@ -51,7 +59,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: MornSteamUploadHelper-Windows
-          path: dist/MornSteamUploadHelper-Windows.zip
+          path: dist/MornSteamUploadHelper-*-Windows.zip
 
   build-macos:
     runs-on: macos-latest
@@ -127,7 +135,7 @@ jobs:
           draft: false
           prerelease: false
           files: |
-            artifacts/MornSteamUploadHelper-Windows/MornSteamUploadHelper-Windows.zip
+            artifacts/MornSteamUploadHelper-Windows/MornSteamUploadHelper-*-Windows.zip
             artifacts/MornSteamUploadHelper-macOS/MornSteamUploadHelper.dmg
           body: |
             ## MornSteamUploadHelper Release
