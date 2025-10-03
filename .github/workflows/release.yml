@@ -35,8 +35,8 @@ jobs:
       - name: Get version
         id: version
         run: |
-          $version = "v$(Get-Date -Format 'yyyy.MM.dd')-${{ github.run_number }}"
-          echo "version=$version" >> $env:GITHUB_OUTPUT
+          $version = (Select-String -Path "src/constants.py" -Pattern 'APP_VERSION = "(.+)"').Matches.Groups[1].Value
+          echo "version=v$version" >> $env:GITHUB_OUTPUT
         shell: powershell
 
       - name: Build Windows executable
@@ -125,7 +125,8 @@ jobs:
       - name: Get version
         id: version
         run: |
-          echo "version=v$(date +'%Y.%m.%d')-${{ github.run_number }}" >> $GITHUB_OUTPUT
+          version=$(grep 'APP_VERSION = ' src/constants.py | sed 's/APP_VERSION = "\(.*\)"/\1/')
+          echo "version=v$version" >> $GITHUB_OUTPUT
       
       - name: Create Release
         uses: softprops/action-gh-release@v1

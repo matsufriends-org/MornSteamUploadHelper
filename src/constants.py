@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 
 # Application Information
-APP_VERSION = "1.0.1"
+APP_VERSION = "1.0.12"
 APP_NAME = "Morn Steam Upload Helper"
 
 # Determine base directory
