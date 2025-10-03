@@ -73,17 +73,24 @@ jobs:
       
       - name: Create DMG with Applications shortcut
         run: |
+          # Wait for any running processes to finish
+          sleep 2
+
+          # Ensure no app processes are running
+          pkill -9 -f MornSteamUploadHelper || true
+          sleep 1
+
           # Create a temporary directory for DMG contents
           mkdir -p dmg_contents
           cp -r dist/MornSteamUploadHelper.app dmg_contents/
           ln -s /Applications dmg_contents/Applications
-          
+
           # Create DMG with volume name
           hdiutil create -volname "MornSteamUploadHelper" \
             -srcfolder dmg_contents \
             -ov -format UDZO \
             dist/MornSteamUploadHelper.dmg
-          
+
           # Clean up
           rm -rf dmg_contents
       
