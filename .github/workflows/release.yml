@@ -56,15 +56,17 @@ jobs:
           chmod +x build_macos.command
           ./build_macos.command
       
-      - name: Create DMG
+      - name: Create ZIP
         run: |
-          hdiutil create -volname "MornSteamUploadHelper" -srcfolder dist/MornSteamUploadHelper.app -ov -format UDZO dist/MornSteamUploadHelper.dmg
+          cd dist
+          zip -r MornSteamUploadHelper.zip MornSteamUploadHelper.app
+          cd ..
       
       - name: Upload macOS artifact
         uses: actions/upload-artifact@v4
         with:
           name: MornSteamUploadHelper-macOS
-          path: dist/MornSteamUploadHelper.dmg
+          path: dist/MornSteamUploadHelper.zip
 
   create-release:
     needs: [build-windows, build-macos]
@@ -91,13 +93,13 @@ jobs:
           prerelease: false
           files: |
             artifacts/MornSteamUploadHelper-Windows/MornSteamUploadHelper.exe
-            artifacts/MornSteamUploadHelper-macOS/MornSteamUploadHelper.dmg
+            artifacts/MornSteamUploadHelper-macOS/MornSteamUploadHelper.zip
           body: |
             ## MornSteamUploadHelper Release
             
             ### Downloads
             - **Windows**: `MornSteamUploadHelper.exe`
-            - **macOS**: `MornSteamUploadHelper.dmg`
+            - **macOS**: `MornSteamUploadHelper.zip`
             
             ### Changes
             ${{ github.event.head_commit.message }}

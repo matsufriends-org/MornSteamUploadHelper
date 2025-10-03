@@ -57,7 +57,7 @@ app = BUNDLE(
         'CFBundleDisplayName': 'Morn Steam Upload Helper',
         'CFBundleShortVersionString': '1.0.1',
         'CFBundleVersion': '1.0.1',
-        'LSUIElement': '1',  # Hide from Dock
+        # 'LSUIElement': '1',  # Hide from Dock - Removed to make app visible
         'LSMinimumSystemVersion': '10.13.0',  # Minimum macOS version
         # File access permissions for FilePicker
         'NSAppleEventsUsageDescription': 'This app needs to access files and folders for Steam uploads.',
