@@ -22,6 +22,7 @@ License: Unlicense (Public Domain)
 import os
 import sys
 import platform
+import multiprocessing
 
 # macOS SDK version compatibility workaround
 # Must be set before importing flet
@@ -70,6 +71,10 @@ def check_platform():
         sys.exit(1)
 
 if __name__ == "__main__":
+    # WindowsでPyInstallerビルド時のmultiprocessing対応
+    # これがないとプロセスが無限に spawn される
+    multiprocessing.freeze_support()
+
     # デバッグログファイルの設定
     import datetime
     log_file = None
