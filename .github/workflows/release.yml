@@ -65,23 +65,29 @@ jobs:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
-      
+
+      - name: Get version
+        id: version
+        run: |
+          version=$(grep 'APP_VERSION = ' src/constants.py | sed 's/APP_VERSION = "\(.*\)"/\1/')
+          echo "version=v$version" >> $GITHUB_OUTPUT
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install pyinstaller pillow
-      
+
       - name: Build macOS app
         run: |
           chmod +x build_macos.command
           ./build_macos.command
-      
+
       - name: Create DMG with Applications shortcut
         run: |
           # Wait for any running processes to finish
@@ -96,20 +102,21 @@ jobs:
           cp -r dist/MornSteamUploadHelper.app dmg_contents/
           ln -s /Applications dmg_contents/Applications
 
-          # Create DMG with volume name
+          # Create DMG with volume name and version
+          version="${{ steps.version.outputs.version }}"
           hdiutil create -volname "MornSteamUploadHelper" \
             -srcfolder dmg_contents \
             -ov -format UDZO \
-            dist/MornSteamUploadHelper.dmg
+            "dist/MornSteamUploadHelper-${version}-macOS.dmg"
 
           # Clean up
           rm -rf dmg_contents
-      
+
       - name: Upload macOS artifact
         uses: actions/upload-artifact@v4
         with:
           name: MornSteamUploadHelper-macOS
-          path: dist/MornSteamUploadHelper.dmg
+          path: dist/MornSteamUploadHelper-*-macOS.dmg
 
   create-release:
     needs: [build-windows, build-macos]
@@ -137,7 +144,7 @@ jobs:
           prerelease: false
           files: |
             artifacts/MornSteamUploadHelper-Windows/MornSteamUploadHelper-*-Windows.zip
-            artifacts/MornSteamUploadHelper-macOS/MornSteamUploadHelper.dmg
+            artifacts/MornSteamUploadHelper-macOS/MornSteamUploadHelper-*-macOS.dmg
           body: |
             ## MornSteamUploadHelper Release
 
