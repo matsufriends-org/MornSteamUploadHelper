@@ -49,13 +49,14 @@ jobs:
           Remove-Item "python-embed.zip"
 
           # Configure Python to use site-packages
-          @"
+          $pthContent = @"
 python312.zip
 .
 Lib\site-packages
 
 import site
-          "@ | Out-File -FilePath "dist-portable\MornSteamUploadHelper-Portable\python-embed\python312._pth" -Encoding ascii
+"@
+          $pthContent | Out-File -FilePath "dist-portable\MornSteamUploadHelper-Portable\python-embed\python312._pth" -Encoding ascii
 
           # Install pip
           Invoke-WebRequest -Uri "https://bootstrap.pypa.io/get-pip.py" -OutFile "get-pip.py"
@@ -71,32 +72,34 @@ import site
           & "dist-portable\MornSteamUploadHelper-Portable\python-embed\python.exe" -m pip install -r "dist-portable\MornSteamUploadHelper-Portable\app\requirements.txt" --target "dist-portable\MornSteamUploadHelper-Portable\python-embed\Lib\site-packages"
 
           # Create launcher
-          @"
-          @echo off
-          REM Morn Steam Upload Helper - Portable Version
-          cd /d "%~dp0"
-          python-embed\python.exe app\src\main.py
-          "@ | Out-File -FilePath "dist-portable\MornSteamUploadHelper-Portable\MornSteamUploadHelper.bat" -Encoding ascii
+          $batContent = @"
+@echo off
+REM Morn Steam Upload Helper - Portable Version
+cd /d "%~dp0"
+python-embed\python.exe app\src\main.py
+"@
+          $batContent | Out-File -FilePath "dist-portable\MornSteamUploadHelper-Portable\MornSteamUploadHelper.bat" -Encoding ascii
 
           # Create README
-          @"
-          # Morn Steam Upload Helper - Portable Version
+          $readmeContent = @"
+# Morn Steam Upload Helper - Portable Version
 
-          ## How to Run
+## How to Run
 
-          Simply double-click ``MornSteamUploadHelper.bat`` to start the application.
+Simply double-click ``MornSteamUploadHelper.bat`` to start the application.
 
-          ## Features
+## Features
 
-          - No Python installation required
-          - No administrator rights needed
-          - Portable - can run from USB drive
-          - No Windows Defender false positives
+- No Python installation required
+- No administrator rights needed
+- Portable - can run from USB drive
+- No Windows Defender false positives
 
-          ## System Requirements
+## System Requirements
 
-          - Windows 10/11 64-bit
-          "@ | Out-File -FilePath "dist-portable\MornSteamUploadHelper-Portable\README.md" -Encoding utf8
+- Windows 10/11 64-bit
+"@
+          $readmeContent | Out-File -FilePath "dist-portable\MornSteamUploadHelper-Portable\README.md" -Encoding utf8
 
           # Create ZIP
           Compress-Archive -Path "dist-portable\MornSteamUploadHelper-Portable\*" -DestinationPath "dist-portable\MornSteamUploadHelper-$version-Portable-Windows.zip" -Force
