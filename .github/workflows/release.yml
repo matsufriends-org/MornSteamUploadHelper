@@ -36,19 +36,22 @@ jobs:
         run: |
           python -m PyInstaller MornSteamUploadHelper_Windows.spec
 
-      - name: Submit to VirusTotal for verification
+      - name: Create ZIP archive
         run: |
+          # Create ZIP file for distribution
+          Compress-Archive -Path "dist\MornSteamUploadHelper.exe" -DestinationPath "dist\MornSteamUploadHelper-Windows.zip"
+
           # Calculate SHA256 hash for reference
           $hash = (Get-FileHash -Path "dist\MornSteamUploadHelper.exe" -Algorithm SHA256).Hash
           echo "Build SHA256: $hash"
-          echo "Please verify at: https://www.virustotal.com/gui/file/$hash"
+          echo "Verify at: https://www.virustotal.com/gui/file/$hash"
         shell: powershell
-      
+
       - name: Upload Windows artifact
         uses: actions/upload-artifact@v4
         with:
           name: MornSteamUploadHelper-Windows
-          path: dist/MornSteamUploadHelper.exe
+          path: dist/MornSteamUploadHelper-Windows.zip
 
   build-macos:
     runs-on: macos-latest
@@ -124,14 +127,18 @@ jobs:
           draft: false
           prerelease: false
           files: |
-            artifacts/MornSteamUploadHelper-Windows/MornSteamUploadHelper.exe
+            artifacts/MornSteamUploadHelper-Windows/MornSteamUploadHelper-Windows.zip
             artifacts/MornSteamUploadHelper-macOS/MornSteamUploadHelper.dmg
           body: |
             ## MornSteamUploadHelper Release
-            
+
             ### Downloads
-            - **Windows**: `MornSteamUploadHelper.exe`
+            - **Windows**: `MornSteamUploadHelper-Windows.zip` (ZIPを解凍して実行してください)
             - **macOS**: `MornSteamUploadHelper.dmg`
-            
+
+            ### Windows版について
+            Windows Defenderの誤検知を避けるため、ZIP形式で配布しています。
+            ZIPファイルをダウンロード後、解凍してから実行してください。
+
             ### Changes
             ${{ github.event.head_commit.message }}
