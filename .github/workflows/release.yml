@@ -45,12 +45,12 @@ jobs:
 
       - name: Create ZIP archive
         run: |
-          # Create ZIP file for distribution with version
+          # Create ZIP file for distribution with version (entire folder for onedir)
           $version = "${{ steps.version.outputs.version }}"
-          Compress-Archive -Path "dist\MornSteamUploadHelper.exe" -DestinationPath "dist\MornSteamUploadHelper-$version-Windows.zip"
+          Compress-Archive -Path "dist\MornSteamUploadHelper\*" -DestinationPath "dist\MornSteamUploadHelper-$version-Windows.zip"
 
           # Calculate SHA256 hash for reference
-          $hash = (Get-FileHash -Path "dist\MornSteamUploadHelper.exe" -Algorithm SHA256).Hash
+          $hash = (Get-FileHash -Path "dist\MornSteamUploadHelper\MornSteamUploadHelper.exe" -Algorithm SHA256).Hash
           echo "Build SHA256: $hash"
           echo "Verify at: https://www.virustotal.com/gui/file/$hash"
         shell: powershell
@@ -153,8 +153,8 @@ jobs:
             - **macOS**: `MornSteamUploadHelper.dmg`
 
             ### Windows版について
-            Windows Defenderの誤検知を避けるため、ZIP形式で配布しています。
-            ZIPファイルをダウンロード後、解凍してから実行してください。
+            ZIPファイルをダウンロード後、解凍してフォルダ内の `MornSteamUploadHelper.exe` を実行してください。
+            ※ フォルダごと解凍してください（exeファイル単体では動作しません）
 
             ### Changes
             ${{ github.event.head_commit.message }}

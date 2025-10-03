@@ -28,16 +28,13 @@ pyz = PYZ(a.pure)
 exe = EXE(
     pyz,
     a.scripts,
-    a.binaries,
-    a.datas,
     [],
+    exclude_binaries=True,
     name='MornSteamUploadHelper',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
     upx=False,
-    upx_exclude=[],
-    runtime_tmpdir=None,
     console=False,
     disable_windowed_traceback=False,
     argv_emulation=False,
@@ -45,4 +42,14 @@ exe = EXE(
     codesign_identity=None,
     entitlements_file=None,
     icon='img/icon.ico' if os.path.exists('img/icon.ico') else 'img/icon-512.png',
+)
+
+coll = COLLECT(
+    exe,
+    a.binaries,
+    a.datas,
+    strip=False,
+    upx=False,
+    upx_exclude=[],
+    name='MornSteamUploadHelper',
 )
