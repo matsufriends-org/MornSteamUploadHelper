@@ -5,7 +5,7 @@ Steam Upload Helper class for managing Steam uploads.
 import json
 import queue
 from pathlib import Path
-from .constants import CONFIG_DIR, VDF_DIR
+from constants import CONFIG_DIR, VDF_DIR
 
 
 class SteamUploadHelper:

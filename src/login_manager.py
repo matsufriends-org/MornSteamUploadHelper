@@ -6,8 +6,8 @@ import threading
 from pathlib import Path
 import os
 
-from .ui_helpers import DialogBuilder, ButtonStateManager
-from .platform_helpers import SteamCMDLauncher, LoginMonitor
+from ui_helpers import DialogBuilder, ButtonStateManager
+from platform_helpers import SteamCMDLauncher, LoginMonitor
 
 
 class LoginManager:

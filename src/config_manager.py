@@ -2,7 +2,7 @@
 
 import flet as ft
 import time
-from .ui_helpers import DialogBuilder, ConfigDialogBuilder, SteamPageOpener
+from ui_helpers import DialogBuilder, ConfigDialogBuilder, SteamPageOpener
 
 
 class ConfigManager:

@@ -5,8 +5,8 @@ Console monitoring functions for Steam Upload Helper.
 import threading
 import time
 from pathlib import Path
-from .utils import log_message, cleanup_temp_scripts
-from .platform_helpers import ConsoleMonitor as PlatformConsoleMonitor
+from utils import log_message, cleanup_temp_scripts
+from platform_helpers import ConsoleMonitor as PlatformConsoleMonitor
 
 
 def start_console_monitor(helper, login_status, login_button, enable_controls_func, page):

@@ -3,7 +3,7 @@ Dialog functions for Morn Steam Upload Helper.
 """
 
 import flet as ft
-from .utils import open_steam_page, log_message
+from utils import open_steam_page, log_message
 
 
 def show_error_dialog(page, message):

@@ -6,10 +6,10 @@ import platform
 import threading
 from pathlib import Path
 
-from .ui_helpers import DialogBuilder
-from .platform_helpers import SteamCMDLauncher
-from .command_sender import CommandSender
-from .folder_picker import pick_folder
+from ui_helpers import DialogBuilder
+from platform_helpers import SteamCMDLauncher
+from command_sender import CommandSender
+from folder_picker import pick_folder
 
 
 class SystemSettingsManager:
