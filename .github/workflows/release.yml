@@ -169,29 +169,8 @@ jobs:
             artifacts/MornSteamUploadHelper-Windows/MornSteamUploadHelper-*-Portable-Windows.zip
             artifacts/MornSteamUploadHelper-macOS/MornSteamUploadHelper-*-macOS.dmg
           body: |
-            ## MornSteamUploadHelper Release
-
-            ### Downloads
-
-            #### Windows
-            - **Windows版** - `MornSteamUploadHelper-Portable-Windows.zip`
-              - Python不要、exeファイルなし、Windows Defenderの誤検知なし
-              - ZIPを解凍して `MornSteamUploadHelper.bat` をダブルクリック
-              - USBメモリでも動作可能
-
-            #### macOS
-            - **macOS版** - `MornSteamUploadHelper.dmg`
-
-            ### Windows版の使い方
-            1. ZIPファイルをダウンロード
-            2. 任意の場所に解凍（USBメモリでも可）
-            3. `MornSteamUploadHelper.bat` をダブルクリックして起動
-
-            ### 特徴
-            - Python インストール不要
-            - 管理者権限不要
-            - ポータブル版（どこでも実行可能）
-            - Windows Defender の誤検知なし
-
-            ### Changes
+            ## Changes
             ${{ github.event.head_commit.message }}
+
+            ## Commits
+            https://github.com/${{ github.repository }}/compare/${{ github.event.before }}...${{ github.sha }}
