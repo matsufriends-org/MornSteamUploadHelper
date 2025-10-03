@@ -36,7 +36,14 @@ if __package__:
     from .main_app import main as app_main
 else:
     # When running as script (e.g., via PyInstaller)
-    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    if getattr(sys, 'frozen', False):
+        # PyInstallerでビルドされた場合
+        bundle_dir = sys._MEIPASS
+    else:
+        # 通常のスクリプト実行
+        bundle_dir = os.path.dirname(os.path.abspath(__file__))
+
+    sys.path.insert(0, bundle_dir)
     from main_app import main as app_main
 
 def check_platform():
@@ -63,8 +70,35 @@ def check_platform():
         sys.exit(1)
 
 if __name__ == "__main__":
+    # デバッグログファイルの設定
+    import datetime
+    log_file = None
+    if getattr(sys, 'frozen', False):
+        # PyInstallerビルド時のみログファイルを作成
+        log_path = os.path.join(os.path.expanduser("~"), "MornSteamUploadHelper_debug.log")
+        log_file = open(log_path, "a", encoding="utf-8")
+        sys.stdout = log_file
+        sys.stderr = log_file
+        print(f"\n=== {datetime.datetime.now()} ===")
+
     # プラットフォームチェック
     check_platform()
 
-    # アプリケーション起動
-    ft.app(target=app_main)
+    # デバッグ情報を出力
+    try:
+        print(f"Starting application...")
+        print(f"Python: {sys.version}")
+        print(f"Platform: {platform.system()}")
+        print(f"Frozen: {getattr(sys, 'frozen', False)}")
+        if getattr(sys, 'frozen', False):
+            print(f"MEIPASS: {sys._MEIPASS}")
+
+        # アプリケーション起動
+        ft.app(target=app_main)
+    except Exception as e:
+        import traceback
+        print(f"Error starting application: {e}")
+        print(traceback.format_exc())
+    finally:
+        if log_file:
+            log_file.close()
