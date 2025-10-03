@@ -71,24 +71,8 @@ jobs:
           $batContent | Out-File -FilePath "dist-portable\MornSteamUploadHelper-Portable\MornSteamUploadHelper.bat" -Encoding ascii
 
           # Create README
-          @'
-# Morn Steam Upload Helper - Portable Version
-
-## How to Run
-
-Simply double-click `MornSteamUploadHelper.bat` to start the application.
-
-## Features
-
-- No Python installation required
-- No administrator rights needed
-- Portable - can run from USB drive
-- No Windows Defender false positives
-
-## System Requirements
-
-- Windows 10/11 64-bit
-'@ | Out-File -FilePath "dist-portable\MornSteamUploadHelper-Portable\README.md" -Encoding utf8
+          $readme = "# Morn Steam Upload Helper - Portable Version`n`n## How to Run`n`nSimply double-click MornSteamUploadHelper.bat to start the application.`n`n## Features`n`n- No Python installation required`n- No administrator rights needed`n- Portable - can run from USB drive`n- No Windows Defender false positives`n`n## System Requirements`n`n- Windows 10/11 64-bit"
+          $readme | Out-File -FilePath "dist-portable\MornSteamUploadHelper-Portable\README.md" -Encoding utf8
 
           # Create ZIP
           Compress-Archive -Path "dist-portable\MornSteamUploadHelper-Portable\*" -DestinationPath "dist-portable\MornSteamUploadHelper-$version-Portable-Windows.zip" -Force
