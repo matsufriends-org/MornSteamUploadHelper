@@ -24,7 +24,13 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install pyinstaller pillow
-      
+
+      - name: Disable Windows Defender for build
+        run: |
+          # Disable real-time monitoring temporarily to prevent false positives during build
+          Add-MpPreference -ExclusionPath "${{ github.workspace }}\dist"
+        shell: powershell
+
       - name: Build Windows executable
         run: |
           python -m PyInstaller MornSteamUploadHelper_Windows.spec
