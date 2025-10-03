@@ -23,17 +23,26 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install pyinstaller pillow
+          pip install pyinstaller==6.11.1 pillow
 
       - name: Disable Windows Defender for build
         run: |
           # Disable real-time monitoring temporarily to prevent false positives during build
           Add-MpPreference -ExclusionPath "${{ github.workspace }}\dist"
+          Add-MpPreference -ExclusionProcess "pyinstaller.exe"
         shell: powershell
 
       - name: Build Windows executable
         run: |
           python -m PyInstaller MornSteamUploadHelper_Windows.spec
+
+      - name: Submit to VirusTotal for verification
+        run: |
+          # Calculate SHA256 hash for reference
+          $hash = (Get-FileHash -Path "dist\MornSteamUploadHelper.exe" -Algorithm SHA256).Hash
+          echo "Build SHA256: $hash"
+          echo "Please verify at: https://www.virustotal.com/gui/file/$hash"
+        shell: powershell
       
       - name: Upload Windows artifact
         uses: actions/upload-artifact@v4
