@@ -73,32 +73,46 @@ if __name__ == "__main__":
     # デバッグログファイルの設定
     import datetime
     log_file = None
-    if getattr(sys, 'frozen', False):
-        # PyInstallerビルド時のみログファイルを作成
-        log_path = os.path.join(os.path.expanduser("~"), "MornSteamUploadHelper_debug.log")
-        log_file = open(log_path, "a", encoding="utf-8")
-        sys.stdout = log_file
-        sys.stderr = log_file
-        print(f"\n=== {datetime.datetime.now()} ===")
 
-    # プラットフォームチェック
-    check_platform()
-
-    # デバッグ情報を出力
     try:
+        if getattr(sys, 'frozen', False):
+            # PyInstallerビルド時のみログファイルを作成
+            log_path = os.path.join(os.path.expanduser("~"), "MornSteamUploadHelper_debug.log")
+            log_file = open(log_path, "a", encoding="utf-8", buffering=1)
+            sys.stdout = log_file
+            sys.stderr = log_file
+
+        print(f"\n=== {datetime.datetime.now()} ===")
+        print("Log started")
+        print(f"Frozen: {getattr(sys, 'frozen', False)}")
+
+        # プラットフォームチェック
+        print("Checking platform...")
+        check_platform()
+        print("Platform check passed")
+
+        # デバッグ情報を出力
         print(f"Starting application...")
         print(f"Python: {sys.version}")
         print(f"Platform: {platform.system()}")
-        print(f"Frozen: {getattr(sys, 'frozen', False)}")
         if getattr(sys, 'frozen', False):
             print(f"MEIPASS: {sys._MEIPASS}")
 
+        print("Importing main_app...")
+        # Import is already at the top, so just call it
+
+        print("Launching flet app...")
         # アプリケーション起動
         ft.app(target=app_main)
+        print("Flet app finished")
     except Exception as e:
         import traceback
-        print(f"Error starting application: {e}")
+        print(f"Error: {e}")
         print(traceback.format_exc())
+        if not log_file:
+            # コンソール表示の場合は入力待ち
+            input("Press Enter to exit...")
     finally:
         if log_file:
+            log_file.flush()
             log_file.close()
