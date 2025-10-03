@@ -28,7 +28,7 @@ Steamへのゲームアップロードを簡単にするGUIツールです。複
 
    **Gitを使う場合:**
    ```bash
-   git clone https://github.com/yourusername/MornSteamUploadHelper.git
+   git clone https://github.com/matsufriends-org/MornSteamUploadHelper.git
    cd MornSteamUploadHelper
    ```
 
