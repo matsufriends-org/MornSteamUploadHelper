@@ -18,7 +18,6 @@ venv/
 # PyInstaller
 build/
 dist/
-*.spec
 
 # IDE
 .idea/
@@ -44,3 +43,9 @@ vdf_files/
 .dart_tool/
 .flutter-plugins
 .flutter-plugins-dependencies
+
+# Flet build artifacts
+*.app
+*.exe
+*.dmg
+*.msi

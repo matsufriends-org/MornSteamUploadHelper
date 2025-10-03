@@ -126,9 +126,25 @@ class SteamUploadApp:
     
     def _build_header(self):
         """ヘッダーセクションを構築"""
+        from constants import APP_VERSION
+        import sys
+        import os
+
+        # アイコンのパスを取得（PyInstaller対応）
+        if getattr(sys, 'frozen', False):
+            # PyInstallerでビルドされた場合
+            base_path = sys._MEIPASS
+        else:
+            # 通常のPythonスクリプトとして実行された場合
+            base_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+        icon_path = os.path.join(base_path, "img", "icon-512.png")
+
         return ft.Container(
             content=ft.Row([
+                ft.Image(src=icon_path, width=32, height=32, fit=ft.ImageFit.CONTAIN) if os.path.exists(icon_path) else ft.Container(),
                 ft.Text("Morn Steam アップロードヘルパー", size=24, weight=ft.FontWeight.BOLD),
+                ft.Text(f"v{APP_VERSION}", size=14, color=ft.Colors.GREY_700),
                 ft.Container(expand=True),
                 self.login_manager.login_status,
                 ft.ElevatedButton(
