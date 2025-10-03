@@ -18,28 +18,18 @@ Steamへのゲームアップロードを簡単にするGUIツールです。複
 
 ## 📋 必要なもの
 
-- Python 3.7以上
 - Steamworks SDK
 - Steamworksパートナーアカウント
 
 ## 🚀 インストール方法
 
-1. このツールをダウンロード:
+1. [Releases](https://github.com/matsufriends-org/MornSteamUploadHelper/releases)から最新版をダウンロード:
+   - **Windows**: `MornSteamUploadHelper-vX.X.X-Portable-Windows.zip`
+   - **macOS**: `MornSteamUploadHelper-vX.X.X-macOS.dmg`
 
-   **Gitを使う場合:**
-   ```bash
-   git clone https://github.com/matsufriends-org/MornSteamUploadHelper.git
-   cd MornSteamUploadHelper
-   ```
-
-   **ZIPでダウンロードする場合:**
-   - GitHubの「Code」ボタンから「Download ZIP」を選択
-   - ダウンロードしたZIPファイルを解凍
-
-2. 必要なライブラリをインストール:
-   ```bash
-   pip install -r requirements.txt
-   ```
+2. ファイルを解凍/インストール:
+   - **Windows**: ZIPを解凍し、任意の場所に配置
+   - **macOS**: DMGを開き、アプリケーションフォルダにドラッグ
 
 3. Steam ContentBuilder SDKをダウンロード:
    - [Steamworks ダウンロードページ](https://partner.steamgames.com/downloads/list)にアクセス
@@ -52,14 +42,7 @@ Steamへのゲームアップロードを簡単にするGUIツールです。複
 1. `MornSteamUploadHelper.bat`をダブルクリック
 
 ### 🍎 macOS
-1. **初回のみ**: 権限の設定が必要な場合があります
-   - ターミナルを開く
-   - 以下のコマンドを実行:
-     ```bash
-     chmod +x MornSteamUploadHelper.command
-     ```
-
-2. `MornSteamUploadHelper.command`をダブルクリック
+1. `MornSteamUploadHelper.app`をダブルクリック
    
 ### ⚙️ 使用手順
 
