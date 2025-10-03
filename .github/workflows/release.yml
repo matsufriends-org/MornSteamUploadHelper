@@ -23,36 +23,12 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install pyinstaller==6.16.0 pillow
-
-      - name: Disable Windows Defender for build
-        run: |
-          # Disable real-time monitoring temporarily to prevent false positives during build
-          Add-MpPreference -ExclusionPath "${{ github.workspace }}\dist"
-          Add-MpPreference -ExclusionProcess "pyinstaller.exe"
-        shell: powershell
 
       - name: Get version
         id: version
         run: |
           $version = (Select-String -Path "src/constants.py" -Pattern 'APP_VERSION = "(.+)"').Matches.Groups[1].Value
           echo "version=v$version" >> $env:GITHUB_OUTPUT
-        shell: powershell
-
-      - name: Build Windows executable
-        run: |
-          python -m PyInstaller --clean MornSteamUploadHelper_Windows.spec
-
-      - name: Create ZIP archive
-        run: |
-          # Create ZIP file for distribution with version (entire folder for onedir)
-          $version = "${{ steps.version.outputs.version }}"
-          Compress-Archive -Path "dist\MornSteamUploadHelper\*" -DestinationPath "dist\MornSteamUploadHelper-$version-Windows.zip"
-
-          # Calculate SHA256 hash for reference
-          $hash = (Get-FileHash -Path "dist\MornSteamUploadHelper\MornSteamUploadHelper.exe" -Algorithm SHA256).Hash
-          echo "Build SHA256: $hash"
-          echo "Verify at: https://www.virustotal.com/gui/file/$hash"
         shell: powershell
 
       - name: Build Portable Windows version
@@ -124,16 +100,10 @@ jobs:
           Compress-Archive -Path "dist-portable\MornSteamUploadHelper-Portable\*" -DestinationPath "dist-portable\MornSteamUploadHelper-$version-Portable-Windows.zip" -Force
         shell: powershell
 
-      - name: Upload Windows EXE artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: MornSteamUploadHelper-Windows-EXE
-          path: dist/MornSteamUploadHelper-*-Windows.zip
-
       - name: Upload Windows Portable artifact
         uses: actions/upload-artifact@v4
         with:
-          name: MornSteamUploadHelper-Windows-Portable
+          name: MornSteamUploadHelper-Windows
           path: dist-portable/MornSteamUploadHelper-*-Portable-Windows.zip
 
   build-macos:
@@ -218,8 +188,7 @@ jobs:
           draft: false
           prerelease: false
           files: |
-            artifacts/MornSteamUploadHelper-Windows-EXE/MornSteamUploadHelper-*-Windows.zip
-            artifacts/MornSteamUploadHelper-Windows-Portable/MornSteamUploadHelper-*-Portable-Windows.zip
+            artifacts/MornSteamUploadHelper-Windows/MornSteamUploadHelper-*-Portable-Windows.zip
             artifacts/MornSteamUploadHelper-macOS/MornSteamUploadHelper-*-macOS.dmg
           body: |
             ## MornSteamUploadHelper Release
@@ -227,19 +196,24 @@ jobs:
             ### Downloads
 
             #### Windows
-            - **🎯 推奨: Portable版** - `MornSteamUploadHelper-Portable-Windows.zip`
+            - **Windows版** - `MornSteamUploadHelper-Portable-Windows.zip`
               - Python不要、exeファイルなし、Windows Defenderの誤検知なし
               - ZIPを解凍して `MornSteamUploadHelper.bat` をダブルクリック
-            - **EXE版** - `MornSteamUploadHelper-Windows.zip`
-              - 従来のexeファイル版（Windows Defenderで警告が出る場合があります）
+              - USBメモリでも動作可能
 
             #### macOS
             - **macOS版** - `MornSteamUploadHelper.dmg`
 
-            ### Windows Portable版の使い方
+            ### Windows版の使い方
             1. ZIPファイルをダウンロード
             2. 任意の場所に解凍（USBメモリでも可）
             3. `MornSteamUploadHelper.bat` をダブルクリックして起動
+
+            ### 特徴
+            - Python インストール不要
+            - 管理者権限不要
+            - ポータブル版（どこでも実行可能）
+            - Windows Defender の誤検知なし
 
             ### Changes
             ${{ github.event.head_commit.message }}

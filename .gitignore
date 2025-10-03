@@ -18,6 +18,8 @@ venv/
 # PyInstaller
 build/
 dist/
+dist-portable/
+nul
 
 # IDE
 .idea/
