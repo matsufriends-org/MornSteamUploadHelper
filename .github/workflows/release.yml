@@ -55,11 +55,86 @@ jobs:
           echo "Verify at: https://www.virustotal.com/gui/file/$hash"
         shell: powershell
 
-      - name: Upload Windows artifact
+      - name: Build Portable Windows version
+        run: |
+          $version = "${{ steps.version.outputs.version }}"
+
+          # Download embedded Python
+          $pythonUrl = "https://www.python.org/ftp/python/3.12.4/python-3.12.4-embed-amd64.zip"
+          Invoke-WebRequest -Uri $pythonUrl -OutFile "python-embed.zip"
+
+          # Create directory structure
+          New-Item -ItemType Directory -Path "dist-portable\MornSteamUploadHelper-Portable" -Force
+          New-Item -ItemType Directory -Path "dist-portable\MornSteamUploadHelper-Portable\app" -Force
+          New-Item -ItemType Directory -Path "dist-portable\MornSteamUploadHelper-Portable\python-embed" -Force
+
+          # Extract Python
+          Expand-Archive -Path "python-embed.zip" -DestinationPath "dist-portable\MornSteamUploadHelper-Portable\python-embed" -Force
+          Remove-Item "python-embed.zip"
+
+          # Configure Python to use site-packages
+          @"
+          import site
+          .
+          Lib\site-packages
+          "@ | Out-File -FilePath "dist-portable\MornSteamUploadHelper-Portable\python-embed\python312._pth" -Encoding ascii
+
+          # Install pip
+          Invoke-WebRequest -Uri "https://bootstrap.pypa.io/get-pip.py" -OutFile "get-pip.py"
+          & "dist-portable\MornSteamUploadHelper-Portable\python-embed\python.exe" "get-pip.py"
+          Remove-Item "get-pip.py"
+
+          # Copy application files
+          Copy-Item -Path "src" -Destination "dist-portable\MornSteamUploadHelper-Portable\app\src" -Recurse
+          Copy-Item -Path "requirements.txt" -Destination "dist-portable\MornSteamUploadHelper-Portable\app\"
+          Copy-Item -Path "img" -Destination "dist-portable\MornSteamUploadHelper-Portable\app\img" -Recurse -ErrorAction SilentlyContinue
+
+          # Install dependencies
+          & "dist-portable\MornSteamUploadHelper-Portable\python-embed\python.exe" -m pip install -r "dist-portable\MornSteamUploadHelper-Portable\app\requirements.txt" --target "dist-portable\MornSteamUploadHelper-Portable\python-embed\Lib\site-packages"
+
+          # Create launcher
+          @"
+          @echo off
+          REM Morn Steam Upload Helper - Portable Version
+          cd /d "%~dp0"
+          python-embed\python.exe app\src\main.py
+          "@ | Out-File -FilePath "dist-portable\MornSteamUploadHelper-Portable\MornSteamUploadHelper.bat" -Encoding ascii
+
+          # Create README
+          @"
+          # Morn Steam Upload Helper - Portable Version
+
+          ## How to Run
+
+          Simply double-click ``MornSteamUploadHelper.bat`` to start the application.
+
+          ## Features
+
+          - No Python installation required
+          - No administrator rights needed
+          - Portable - can run from USB drive
+          - No Windows Defender false positives
+
+          ## System Requirements
+
+          - Windows 10/11 64-bit
+          "@ | Out-File -FilePath "dist-portable\MornSteamUploadHelper-Portable\README.md" -Encoding utf8
+
+          # Create ZIP
+          Compress-Archive -Path "dist-portable\MornSteamUploadHelper-Portable\*" -DestinationPath "dist-portable\MornSteamUploadHelper-$version-Portable-Windows.zip" -Force
+        shell: powershell
+
+      - name: Upload Windows EXE artifact
         uses: actions/upload-artifact@v4
         with:
-          name: MornSteamUploadHelper-Windows
+          name: MornSteamUploadHelper-Windows-EXE
           path: dist/MornSteamUploadHelper-*-Windows.zip
+
+      - name: Upload Windows Portable artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: MornSteamUploadHelper-Windows-Portable
+          path: dist-portable/MornSteamUploadHelper-*-Portable-Windows.zip
 
   build-macos:
     runs-on: macos-latest
@@ -143,18 +218,28 @@ jobs:
           draft: false
           prerelease: false
           files: |
-            artifacts/MornSteamUploadHelper-Windows/MornSteamUploadHelper-*-Windows.zip
+            artifacts/MornSteamUploadHelper-Windows-EXE/MornSteamUploadHelper-*-Windows.zip
+            artifacts/MornSteamUploadHelper-Windows-Portable/MornSteamUploadHelper-*-Portable-Windows.zip
             artifacts/MornSteamUploadHelper-macOS/MornSteamUploadHelper-*-macOS.dmg
           body: |
             ## MornSteamUploadHelper Release
 
             ### Downloads
-            - **Windows**: `MornSteamUploadHelper-Windows.zip` (ZIPを解凍して実行してください)
-            - **macOS**: `MornSteamUploadHelper.dmg`
 
-            ### Windows版について
-            ZIPファイルをダウンロード後、解凍してフォルダ内の `MornSteamUploadHelper.exe` を実行してください。
-            ※ フォルダごと解凍してください（exeファイル単体では動作しません）
+            #### Windows
+            - **🎯 推奨: Portable版** - `MornSteamUploadHelper-Portable-Windows.zip`
+              - Python不要、exeファイルなし、Windows Defenderの誤検知なし
+              - ZIPを解凍して `MornSteamUploadHelper.bat` をダブルクリック
+            - **EXE版** - `MornSteamUploadHelper-Windows.zip`
+              - 従来のexeファイル版（Windows Defenderで警告が出る場合があります）
+
+            #### macOS
+            - **macOS版** - `MornSteamUploadHelper.dmg`
+
+            ### Windows Portable版の使い方
+            1. ZIPファイルをダウンロード
+            2. 任意の場所に解凍（USBメモリでも可）
+            3. `MornSteamUploadHelper.bat` をダブルクリックして起動
 
             ### Changes
             ${{ github.event.head_commit.message }}
