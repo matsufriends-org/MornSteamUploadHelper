@@ -19,8 +19,15 @@ Author: MornSteamUploadHelper Contributors
 License: Unlicense (Public Domain)
 """
 
+import os
 import sys
 import platform
+
+# macOS SDK version compatibility workaround
+# Must be set before importing flet
+if platform.system() == "Darwin":
+    os.environ["SYSTEM_VERSION_COMPAT"] = "0"
+
 import flet as ft
 
 # Import main application

@@ -58,5 +58,12 @@ app = BUNDLE(
         'CFBundleShortVersionString': '1.0.1',
         'CFBundleVersion': '1.0.1',
         'LSUIElement': '1',  # Hide from Dock
+        'LSMinimumSystemVersion': '10.13.0',  # Minimum macOS version
+        # File access permissions for FilePicker
+        'NSAppleEventsUsageDescription': 'This app needs to access files and folders for Steam uploads.',
+        'NSDocumentsFolderUsageDescription': 'This app needs to access documents for Steam uploads.',
+        'NSDownloadsFolderUsageDescription': 'This app needs to access downloads for Steam uploads.',
+        'NSDesktopFolderUsageDescription': 'This app needs to access desktop for Steam uploads.',
+        'NSRemovableVolumesUsageDescription': 'This app needs to access removable volumes for Steam uploads.',
     },
 )

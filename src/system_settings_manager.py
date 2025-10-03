@@ -3,11 +3,13 @@
 import flet as ft
 import os
 import platform
+import threading
 from pathlib import Path
 
 from ui_helpers import DialogBuilder
 from platform_helpers import SteamCMDLauncher
 from command_sender import CommandSender
+from folder_picker import pick_folder
 
 
 class SystemSettingsManager:
@@ -48,11 +50,12 @@ class SystemSettingsManager:
         )
         
         def select_content_builder(e):
-            def on_folder_selected(e: ft.FilePickerResultEvent):
-                if e.path:
+            def run_picker():
+                folder_path = pick_folder(title="ContentBuilder フォルダを選択")
+                if folder_path:
                     # Validate the selected folder
-                    if self._validate_content_builder_path(e.path):
-                        content_builder_field.value = e.path
+                    if self._validate_content_builder_path(folder_path):
+                        content_builder_field.value = folder_path
                         dlg.update()
                     else:
                         DialogBuilder.show_error_dialog(
@@ -60,11 +63,9 @@ class SystemSettingsManager:
                             "選択されたフォルダは有効なContentBuilderフォルダではありません。\n"
                             "'builder' または 'builder_osx' フォルダを含む必要があります。"
                         )
-            
-            folder_picker = ft.FilePicker(on_result=on_folder_selected)
-            self.page.overlay.append(folder_picker)
-            self.page.update()
-            folder_picker.get_directory_path(dialog_title="ContentBuilder フォルダを選択")
+
+            # Run in separate thread to avoid blocking UI
+            threading.Thread(target=run_picker, daemon=True).start()
         
         select_cb_btn = ft.IconButton(
             ft.Icons.FOLDER_OPEN,
@@ -81,15 +82,14 @@ class SystemSettingsManager:
         )
         
         def select_build_output(e):
-            def on_folder_selected(e: ft.FilePickerResultEvent):
-                if e.path:
-                    build_output_field.value = e.path
+            def run_picker():
+                folder_path = pick_folder(title="ビルド出力フォルダを選択")
+                if folder_path:
+                    build_output_field.value = folder_path
                     dlg.update()
-            
-            folder_picker = ft.FilePicker(on_result=on_folder_selected)
-            self.page.overlay.append(folder_picker)
-            self.page.update()
-            folder_picker.get_directory_path(dialog_title="ビルド出力フォルダを選択")
+
+            # Run in separate thread to avoid blocking UI
+            threading.Thread(target=run_picker, daemon=True).start()
         
         select_output_btn = ft.IconButton(
             ft.Icons.FOLDER_OPEN,
@@ -230,18 +230,17 @@ class SystemSettingsManager:
     
     def select_build_output_folder(self):
         """ビルド出力フォルダを選択"""
-        def on_folder_selected(e: ft.FilePickerResultEvent):
-            if e.path:
-                self.helper.settings["build_output_path"] = e.path
+        def run_picker():
+            folder_path = pick_folder(title="ビルド出力フォルダを選択")
+            if folder_path:
+                self.helper.settings["build_output_path"] = folder_path
                 self.helper.save_settings()
-                self.build_output_path_text.value = e.path
+                self.build_output_path_text.value = folder_path
                 self.page.update()
-                self._log_message(f"ビルド出力フォルダを設定: {e.path}")
-        
-        folder_picker = ft.FilePicker(on_result=on_folder_selected)
-        self.page.overlay.append(folder_picker)
-        self.page.update()
-        folder_picker.get_directory_path(dialog_title="ビルド出力フォルダを選択")
+                self._log_message(f"ビルド出力フォルダを設定: {folder_path}")
+
+        # Run in separate thread to avoid blocking UI
+        threading.Thread(target=run_picker, daemon=True).start()
     
     def reset_build_output_folder(self):
         """ビルド出力フォルダをリセット"""

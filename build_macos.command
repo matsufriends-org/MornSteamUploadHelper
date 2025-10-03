@@ -46,8 +46,33 @@ echo "Building macOS application with PyInstaller..."
 # 事前にクリーンアップして、確認プロンプトを回避
 rm -rf build dist
 
+# macOS SDK version mismatch対策
+export SYSTEM_VERSION_COMPAT=0
+
 # PyInstallerを使用
 pyinstaller MornSteamUploadHelper.spec
+
+echo ""
+echo "Patching SDK version compatibility..."
+# Fletのバイナリを探して、SDKバージョンチェックを無効化
+find dist/MornSteamUploadHelper.app/Contents/Resources -name "fletd" -type f -exec install_name_tool -add_rpath "@executable_path" {} \; 2>/dev/null || true
+
+# 実行ファイルにもパッチを当てる
+# SDK version check を回避するため、環境変数を設定するラッパースクリプトを作成
+WRAPPER_PATH="dist/MornSteamUploadHelper.app/Contents/MacOS/MornSteamUploadHelper.orig"
+if [ -f "dist/MornSteamUploadHelper.app/Contents/MacOS/MornSteamUploadHelper" ]; then
+    mv "dist/MornSteamUploadHelper.app/Contents/MacOS/MornSteamUploadHelper" "$WRAPPER_PATH"
+
+    cat > "dist/MornSteamUploadHelper.app/Contents/MacOS/MornSteamUploadHelper" << 'EOF'
+#!/bin/bash
+export SYSTEM_VERSION_COMPAT=0
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+exec "$DIR/MornSteamUploadHelper.orig" "$@"
+EOF
+
+    chmod +x "dist/MornSteamUploadHelper.app/Contents/MacOS/MornSteamUploadHelper"
+    echo "SDK compatibility patch applied successfully."
+fi
 
 echo ""
 echo "Cleaning up build artifacts..."

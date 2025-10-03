@@ -50,6 +50,10 @@ echo "MornSteamCMD - このウィンドウを閉じないでください"
 echo "このコンソールはアップロードに使用されます"
 echo ""
 cd "{os.path.dirname(abs_steamcmd_path)}"
+# steamcmd.shとsteamcmdバイナリに実行権限を付与
+chmod +x "{abs_steamcmd_path}"
+chmod +x steamcmd 2>/dev/null
+# ログイン実行
 "{abs_steamcmd_path}" +{login_cmd}
 '''
         

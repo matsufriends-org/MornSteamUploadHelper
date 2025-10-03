@@ -1,3 +1,5 @@
 #!/bin/bash
 cd "$(dirname "$0")"
-python3 src/main.py
+# Set environment variable before Python starts
+export SYSTEM_VERSION_COMPAT=0
+exec python3 src/main.py
